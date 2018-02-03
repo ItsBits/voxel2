@@ -25,7 +25,7 @@ private:
     const T PI{ 3.14159 };
     const T MAX_PITCH{ 3.14159 / 2.0 - 0.001 };
     const T INVERSE_MOUSE_SENSITIVITY{ 100.0 };
-
+    const T SPEED{ 10.0 };
 };
 
 //==============================================================================
@@ -55,7 +55,7 @@ void Player<T>::update(T dt, const std::array<bool, 6> & keys, glm::tvec2<T> mou
         if (keys[4]) velocity += m_up;
         else velocity -= m_up;
     
-    m_position += velocity * dt;
+    m_position += velocity * dt * SPEED;
 
     mouse_movement.y = -mouse_movement.y;
     mouse_movement /= INVERSE_MOUSE_SENSITIVITY;

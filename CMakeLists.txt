@@ -16,6 +16,9 @@ set(SOURCE_FILES
     src/VoxelStorage.cpp
     src/Window.hpp
     src/Window.cpp
+    src/Scene.hpp
+    src/MeshIterator.hpp
+    src/Scene.cpp
 )
 
 add_executable(voxel ${SOURCE_FILES})
