@@ -19,6 +19,8 @@ set(SOURCE_FILES
     src/Scene.hpp
     src/MeshIterator.hpp
     src/Scene.cpp
+    src/QuadEBO.hpp
+    src/QuadEBO.cpp
 )
 
 add_executable(voxel ${SOURCE_FILES})

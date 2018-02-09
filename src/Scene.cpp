@@ -23,7 +23,12 @@ std::vector<uint8_t> Scene::generateChunkMesh(VoxelStorage & vs, const glm::ivec
     // x, y, z
 
     const auto block_get = [](const glm::ivec3 & p) -> uint8_t {
-        return 0;
+        //std::cout << glm::to_string(p) << std::endl;
+        if (std::sin(p[0] * 0.1f) * std::sin(p[2] * 0.1f) * 10.0f > static_cast<float>(p[1]))
+            return 1;
+        else
+            return 0;
+        //return p.x == 1;
     };
 
     struct Vertex {
@@ -244,6 +249,11 @@ std::vector<uint8_t> Scene::generateChunkMesh(VoxelStorage & vs, const glm::ivec
         tmp_mesh.push_back(v.x);
         tmp_mesh.push_back(v.y);
         tmp_mesh.push_back(v.z);
+        tmp_mesh.push_back(v.c);
+        tmp_mesh.push_back(v.a0);
+        tmp_mesh.push_back(v.a1);
+        tmp_mesh.push_back(v.a2);
+        tmp_mesh.push_back(v.a3);
     }
     return std::move(tmp_mesh);
 }

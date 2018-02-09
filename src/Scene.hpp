@@ -5,6 +5,7 @@
 #include "gl3w.h"
 #include "VoxelStorage.hpp"
 #include "MeshIterator.hpp"
+#include "QuadEBO.hpp"
 
 class Scene {
 public:
@@ -34,7 +35,7 @@ public:
                 const auto offset = m.first * CHUNK_SIZES;
                 glUniform3f(offset_uniform, offset.x, offset.y, offset.z);
                 glBindVertexArray(m.second.VAO);
-                glDrawArrays(GL_TRIANGLES, 0, m.second.element_count);
+                glDrawElements(GL_TRIANGLES, m.second.element_count, QuadEBO::type(), 0);
                 glBindVertexArray(0);
             }
         }
@@ -65,28 +66,26 @@ private:
     ChunkMesh generateAndUploadChunkMesh(VoxelStorage & vs, const glm::ivec3 & chunk_position) {
         std::vector<uint8_t> mesh = generateChunkMesh(vs, chunk_position);
 
-        /*uint8_t dummy_mesh[] = {
-            5, 5, 5,
-            5, 6, 5,
-            5, 6, 6
-        };
-        for (const auto & i : dummy_mesh) mesh.push_back(i);*/
-
         ChunkMesh chunk_mesh;
-        chunk_mesh.element_count = 10; // TODO: correct value
+        const size_t vetrex_count = mesh.size() / 8;
+        // size should always be divisible by 2
+        chunk_mesh.element_count = vetrex_count + (vetrex_count / 2);
 
         glGenVertexArrays(1, &chunk_mesh.VAO);
         glGenBuffers(1, &chunk_mesh.VBO);
         glBindVertexArray(chunk_mesh.VAO);
         glBindBuffer(GL_ARRAY_BUFFER, chunk_mesh.VBO);
-        //QuadEBO::bind();
-        // TODO: quadebo resize
-        glVertexAttribIPointer(0, 3, GL_UNSIGNED_BYTE, sizeof(uint8_t) * 3, (GLvoid *)(0));
+        QuadEBO::bind();
+        QuadEBO::resize(chunk_mesh.element_count);
+        glVertexAttribIPointer(0, 3, GL_UNSIGNED_BYTE, sizeof(uint8_t) * 8, (GLvoid *)(0));
+        glVertexAttribIPointer(1, 1, GL_UNSIGNED_BYTE, sizeof(uint8_t) * 8, (GLvoid *)(3));
+        glVertexAttribIPointer(2, 4, GL_UNSIGNED_BYTE, sizeof(uint8_t) * 8, (GLvoid *)(4));
         glEnableVertexAttribArray(0);
+        glEnableVertexAttribArray(1);
+        glEnableVertexAttribArray(2);
         glBindVertexArray(0);
 
         glBindBuffer(GL_ARRAY_BUFFER, chunk_mesh.VBO);
-        // TODO
         glBufferData(GL_ARRAY_BUFFER, mesh.size() * sizeof(mesh[0]), mesh.data(), GL_STATIC_DRAW);
 
         return chunk_mesh;
