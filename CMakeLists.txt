@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.7)
 project(voxel)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 set(SOURCE_FILES
-    src/gl3w.h
-    src/gl3w.c
-    src/glcorearb.h
+    gl3w/gl3w.h
+    gl3w/gl3w.c
+    gl3w/glcorearb.h
     src/main.cpp
     src/Input.hpp
     src/Player.hpp

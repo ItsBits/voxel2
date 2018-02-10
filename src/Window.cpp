@@ -1,6 +1,6 @@
 #include "Window.hpp"
 
-#include "gl3w.h"
+#include "../gl3w/gl3w.h"
 #include <GLFW/glfw3.h>
 
 #include <stdexcept>

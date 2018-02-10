@@ -25,7 +25,7 @@ private:
     const T PI{ 3.14159 };
     const T MAX_PITCH{ 3.14159 / 2.0 - 0.001 };
     const T INVERSE_MOUSE_SENSITIVITY{ 100.0 };
-    const T SPEED{ 10.0 };
+    const T SPEED{ 50.0 };
 };
 
 //==============================================================================

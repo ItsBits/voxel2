@@ -9,7 +9,9 @@
 class MeshIterator {
 public:
     MeshIterator(int radius) {
+        m_radius = 0;
         if (radius < 0) return;
+        m_radius = radius;
 
         m_values.reserve((2 * (size_t)radius + 1) * (2 * (size_t)radius + 1) * (2 * (size_t)radius + 1));
         for (int z = -radius; z <= radius; ++z)
@@ -24,6 +26,7 @@ public:
     }
 
     size_t size() const { return m_values.size(); }
+    int getRadius() const { return m_radius; }
 
     glm::ivec3 get(size_t i) const {
         assert(i < m_values.size());
@@ -32,5 +35,6 @@ public:
 
 private:
     std::vector<glm::ivec3> m_values;
+    int m_radius;
 
 };

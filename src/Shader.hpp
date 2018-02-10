@@ -3,7 +3,7 @@
 #include <vector>
 #include <string>
 
-#include "gl3w.h"
+#include "../gl3w/gl3w.h"
 
 class Shader
 {

@@ -2,7 +2,7 @@
 #include <thread>
 #include <chrono>
 
-#include "gl3w.h"
+#include "../gl3w/gl3w.h"
 
 #include "Window.hpp"
 #include "Input.hpp"
@@ -37,6 +37,7 @@ int main() {
     glDepthFunc(GL_LEQUAL); // sky box
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_CULL_FACE);
 
     Monostable q_button;
     VoxelStorage voxel_storage{};
@@ -46,8 +47,8 @@ int main() {
     Scene scene{};
     Shader scene_shader{
         {
-            { "src/block.vert", GL_VERTEX_SHADER },
-            { "src/block.frag", GL_FRAGMENT_SHADER }
+            { "shader/block.vert", GL_VERTEX_SHADER },
+            { "shader/block.frag", GL_FRAGMENT_SHADER }
         }
     };
 
@@ -75,7 +76,8 @@ int main() {
         if (q_button.state()) window.toggleMouse();
 
         scene_shader.use();
-        scene.update(voxel_storage, glm::ivec3{ 0, 0, 0 });
+        glm::ivec3 center = player.getPosition() / glm::vec3{ VoxelStorage::CHUNK_SIZE.x, VoxelStorage::CHUNK_SIZE.y, VoxelStorage::CHUNK_SIZE.z };
+        scene.update(voxel_storage, center);
         const auto VP_matrix = camera.getViewProjectionMatrix();
         glUniformMatrix4fv(VP_uniform, 1, GL_FALSE, glm::value_ptr(VP_matrix));
         scene.draw(offset_uniform);

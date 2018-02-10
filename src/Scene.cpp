@@ -2,7 +2,7 @@
 #include <vector>
 
 //==============================================================================
-inline std::uint8_t vertexAO(const bool side_a, const bool side_b, const bool corner)
+static inline std::uint8_t vertexAO(const bool side_a, const bool side_b, const bool corner)
 {
 #if 0
     // is this branch free version correct?
@@ -20,15 +20,38 @@ inline std::uint8_t vertexAO(const bool side_a, const bool side_b, const bool co
 
 //==============================================================================
 std::vector<uint8_t> Scene::generateChunkMesh(VoxelStorage & vs, const glm::ivec3 & chunk_position) {
-    // x, y, z
+    const auto CHUNK_SIZES = glm::ivec3{ VoxelStorage::CHUNK_SIZE.x, VoxelStorage::CHUNK_SIZE.y, VoxelStorage::CHUNK_SIZE.z };
+    const glm::ivec3 from_block{ chunk_position * CHUNK_SIZES };
+    const glm::ivec3 to_block{ from_block + CHUNK_SIZES };
+    const uint8_t * blockss[27];
+    size_t k = 0;
+    for (int z = chunk_position.z - 1; z <= chunk_position.z + 1; ++z)
+        for (int y = chunk_position.y - 1; y <= chunk_position.y + 1; ++y)
+            for (int x = chunk_position.x - 1; x <= chunk_position.x + 1; ++x) {
+                blockss[k++] = vs.get(x, y, z, true, false);
+            }
+//    const uint8_t * blockss = vs.get({ chunk_position.x, chunk_position.y, chunk_position.z }, true, false);
+    const auto block_get = [CHUNK_SIZES, blockss, chunk_position] (glm::ivec3 p) -> uint8_t {
+        glm::ivec3 pp = p;
+        // floor division
+        // r[i] = (x[i] + (x[i] < 0)) / y[i] - (x[i] < 0)
+        pp.x = (pp.x + (pp.x < 0)) / CHUNK_SIZES.x - (pp.x < 0);
+        pp.y = (pp.y + (pp.y < 0)) / CHUNK_SIZES.y - (pp.y < 0);
+        pp.z = (pp.z + (pp.z < 0)) / CHUNK_SIZES.z - (pp.z < 0);
+        // TODO: handle out of ranges (aka. decouble mesh from chunk)
+//        if (pp.x != chunk_position.x || pp.y != chunk_position.y || pp.z != chunk_position.z)
+//            return 0;
+        pp -= chunk_position - 1;
+        assert(pp.x >= 0 && pp.y >= 0 && pp.z >= 0 && pp.x < 3 && pp.y < 3 && pp.z < 3);
 
-    const auto block_get = [](const glm::ivec3 & p) -> uint8_t {
-        //std::cout << glm::to_string(p) << std::endl;
-        if (std::sin(p[0] * 0.1f) * std::sin(p[2] * 0.1f) * 10.0f > static_cast<float>(p[1]))
-            return 1;
-        else
-            return 0;
-        //return p.x == 1;
+
+        // floor modulus
+        // r[i] = (x[i] % y[i] + y[i]) % y[i]
+        p.x = (p.x % CHUNK_SIZES.x + CHUNK_SIZES.x) % CHUNK_SIZES.x;
+        p.y = (p.y % CHUNK_SIZES.y + CHUNK_SIZES.y) % CHUNK_SIZES.y;
+        p.z = (p.z % CHUNK_SIZES.z + CHUNK_SIZES.z) % CHUNK_SIZES.z;
+        // TODO: don't hardcode lookup array dimensions (but calculate from mesh dimensions)
+        return blockss[pp.z * 9 + pp.y * 3 + pp.x][p.z * CHUNK_SIZES.y * CHUNK_SIZES.x + p.y * CHUNK_SIZES.x + p.x];
     };
 
     struct Vertex {
@@ -38,12 +61,9 @@ std::vector<uint8_t> Scene::generateChunkMesh(VoxelStorage & vs, const glm::ivec
     constexpr std::uint8_t SHADOW_STRENGTH{ 60 };
 
     std::vector<Vertex> mesh;
+    mesh.reserve(1024*1024); // whatever
 
     glm::ivec3 i;
-
-    const auto CHUNK_SIZES = glm::ivec3{ VoxelStorage::CHUNK_SIZE.x, VoxelStorage::CHUNK_SIZE.y, VoxelStorage::CHUNK_SIZE.z };
-    const glm::ivec3 from_block{ chunk_position * CHUNK_SIZES };
-    const glm::ivec3 to_block{ from_block + CHUNK_SIZES };
 
     const glm::ivec3 offset{ from_block };
 
@@ -80,11 +100,12 @@ std::vector<uint8_t> Scene::generateChunkMesh(VoxelStorage & vs, const glm::ivec
 
                     const auto quad_pos_int = i - offset;
                     const auto quad_pos = glm::tvec3<uint8_t>{ quad_pos_int.x, quad_pos_int.y, quad_pos_int.z };
+                    const auto quad_po1 = quad_pos + uint8_t(1);
 
-                    mesh.push_back(Vertex{ quad_pos[0] + 1, quad_pos[1]    , quad_pos[2] + 1, block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0] + 1, quad_pos[1]    , quad_pos[2]    , block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0] + 1, quad_pos[1] + 1, quad_pos[2]    , block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0] + 1, quad_pos[1] + 1, quad_pos[2] + 1, block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_po1[0], quad_pos[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_po1[0], quad_pos[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_po1[0], quad_po1[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_po1[0], quad_po1[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
                 }
 
                 // X - 1
@@ -111,11 +132,12 @@ std::vector<uint8_t> Scene::generateChunkMesh(VoxelStorage & vs, const glm::ivec
 
                     const auto quad_pos_int = i - offset;
                     const auto quad_pos = glm::tvec3<uint8_t>{ quad_pos_int.x, quad_pos_int.y, quad_pos_int.z };
+                    const auto quad_po1 = quad_pos + uint8_t(1);
 
-                    mesh.push_back(Vertex{ quad_pos[0]    , quad_pos[1]    , quad_pos[2]    , block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0]    , quad_pos[1]    , quad_pos[2] + 1, block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0]    , quad_pos[1] + 1, quad_pos[2] + 1, block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0]    , quad_pos[1] + 1, quad_pos[2]    , block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_pos[0], quad_pos[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_pos[0], quad_pos[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_pos[0], quad_po1[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_pos[0], quad_po1[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
                 }
 
                 // Y + 1
@@ -142,11 +164,12 @@ std::vector<uint8_t> Scene::generateChunkMesh(VoxelStorage & vs, const glm::ivec
 
                     const auto quad_pos_int = i - offset;
                     const auto quad_pos = glm::tvec3<uint8_t>{ quad_pos_int.x, quad_pos_int.y, quad_pos_int.z };
+                    const auto quad_po1 = quad_pos + uint8_t(1);
 
-                    mesh.push_back(Vertex{ quad_pos[0] + 1, quad_pos[1] + 1, quad_pos[2]    , block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0]    , quad_pos[1] + 1, quad_pos[2]    , block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0]    , quad_pos[1] + 1, quad_pos[2] + 1, block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0] + 1, quad_pos[1] + 1, quad_pos[2] + 1, block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_po1[0], quad_po1[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_pos[0], quad_po1[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_pos[0], quad_po1[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_po1[0], quad_po1[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
                 }
 
                 // Y - 1
@@ -173,11 +196,12 @@ std::vector<uint8_t> Scene::generateChunkMesh(VoxelStorage & vs, const glm::ivec
 
                     const auto quad_pos_int = i - offset;
                     const auto quad_pos = glm::tvec3<uint8_t>{ quad_pos_int.x, quad_pos_int.y, quad_pos_int.z };
+                    const auto quad_po1 = quad_pos + uint8_t(1);
 
-                    mesh.push_back(Vertex{ quad_pos[0]    , quad_pos[1]    , quad_pos[2]    , block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0] + 1, quad_pos[1]    , quad_pos[2]    , block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0] + 1, quad_pos[1]    , quad_pos[2] + 1, block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0]    , quad_pos[1]    , quad_pos[2] + 1, block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_pos[0], quad_pos[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_po1[0], quad_pos[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_po1[0], quad_pos[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_pos[0], quad_pos[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
                 }
 
                 // Z + 1
@@ -204,11 +228,12 @@ std::vector<uint8_t> Scene::generateChunkMesh(VoxelStorage & vs, const glm::ivec
 
                     const auto quad_pos_int = i - offset;
                     const auto quad_pos = glm::tvec3<uint8_t>{ quad_pos_int.x, quad_pos_int.y, quad_pos_int.z };
+                    const auto quad_po1 = quad_pos + uint8_t(1);
 
-                    mesh.push_back(Vertex{ quad_pos[0]    , quad_pos[1]    , quad_pos[2] + 1, block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0] + 1, quad_pos[1]    , quad_pos[2] + 1, block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0] + 1, quad_pos[1] + 1, quad_pos[2] + 1, block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0]    , quad_pos[1] + 1, quad_pos[2] + 1, block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_pos[0], quad_pos[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_po1[0], quad_pos[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_po1[0], quad_po1[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_pos[0], quad_po1[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
                 }
 
                 // Z - 1
@@ -234,17 +259,20 @@ std::vector<uint8_t> Scene::generateChunkMesh(VoxelStorage & vs, const glm::ivec
                     } * SHADOW_STRENGTH;
 
                     const auto quad_pos_int = i - offset;
-                    const glm::tvec3<uint8_t> quad_pos = glm::tvec3<uint8_t>{ quad_pos_int.x, quad_pos_int.y, quad_pos_int.z };
+                    const auto quad_pos = glm::tvec3<uint8_t>{ quad_pos_int.x, quad_pos_int.y, quad_pos_int.z };
+                    const auto quad_po1 = quad_pos + uint8_t(1);
 
-                    mesh.push_back(Vertex{ quad_pos[0] + 1, quad_pos[1]    , quad_pos[2]     , block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0]    , quad_pos[1]    , quad_pos[2]     , block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0]    , quad_pos[1] + 1, quad_pos[2]     , block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0] + 1, quad_pos[1] + 1, quad_pos[2]     , block, ao[0], ao[1], ao[2], ao[3] });
+                    uint8_t tt = uint8_t(quad_pos[1]) + uint8_t(1);
+
+                    mesh.push_back(Vertex{ quad_po1[0], quad_pos[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_pos[0], quad_pos[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_pos[0], quad_po1[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
+                    mesh.push_back(Vertex{ quad_po1[0], quad_po1[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
                 }
             }
 
     std::vector<uint8_t> tmp_mesh;
-    tmp_mesh.reserve(mesh.size() * 3);
+    tmp_mesh.reserve(mesh.size() * 8);
     for (const auto & v : mesh) {
         tmp_mesh.push_back(v.x);
         tmp_mesh.push_back(v.y);

@@ -2,18 +2,30 @@
 
 #include <unordered_map>
 #include <glm/vec3.hpp>
-#include "gl3w.h"
+#include "../gl3w/gl3w.h"
 #include "VoxelStorage.hpp"
 #include "MeshIterator.hpp"
 #include "QuadEBO.hpp"
 
 class Scene {
 public:
-    Scene() : m_mesh_iterator{ 1 } {
+    Scene() : m_mesh_iterator{ 5 } {
 
     }
 
     void update(VoxelStorage & vs, const glm::ivec3 & center) {
+        for(auto m = m_meshes.begin(); m != m_meshes.end();) {
+            const glm::ivec3 distance = glm::abs(center - m->first);
+            const int r = m_mesh_iterator.getRadius();
+            if (distance.x > r || distance.y > r || distance.z > r) {
+                glDeleteBuffers(1, &m->second.VBO);
+                glDeleteVertexArrays(1, &m->second.VAO);
+                m = m_meshes.erase(m);
+            } else {
+                ++m;
+            }
+        }
+
         for (size_t i = 0, size = m_mesh_iterator.size(); i < size; ++i) {
             const auto mesh_position = m_mesh_iterator.get(i) + center;
             const auto mesh_iterator = m_meshes.find(mesh_position);
@@ -23,7 +35,6 @@ public:
 
                 break; // TODO: improve
             }
-            // TODO: remove out of range
         }
     }
 
@@ -42,10 +53,6 @@ public:
     }
 
 private:
-    //struct VoxelMeshVertex {
-    //    uint8_t x, y, z;
-    //};
-
     struct ChunkMesh {
         GLuint VAO, VBO;
         GLsizei element_count;
