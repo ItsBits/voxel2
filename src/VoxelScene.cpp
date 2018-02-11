@@ -1,4 +1,4 @@
-#include "Scene.hpp"
+#include "VoxelScene.hpp"
 #include <vector>
 
 //==============================================================================
@@ -19,8 +19,7 @@ static inline std::uint8_t vertexAO(const bool side_a, const bool side_b, const 
 }
 
 //==============================================================================
-std::vector<uint8_t> Scene::generateChunkMesh(VoxelStorage & vs, const glm::ivec3 & chunk_position) {
-    const auto CHUNK_SIZES = glm::ivec3{ VoxelStorage::CHUNK_SIZE.x, VoxelStorage::CHUNK_SIZE.y, VoxelStorage::CHUNK_SIZE.z };
+std::vector<uint8_t> VoxelScene::generateChunkMesh(VoxelStorage & vs, const glm::ivec3 & chunk_position) {
     const glm::ivec3 from_block{ chunk_position * CHUNK_SIZES };
     const glm::ivec3 to_block{ from_block + CHUNK_SIZES };
     const uint8_t * blockss[27];
@@ -28,10 +27,15 @@ std::vector<uint8_t> Scene::generateChunkMesh(VoxelStorage & vs, const glm::ivec
     for (int z = chunk_position.z - 1; z <= chunk_position.z + 1; ++z)
         for (int y = chunk_position.y - 1; y <= chunk_position.y + 1; ++y)
             for (int x = chunk_position.x - 1; x <= chunk_position.x + 1; ++x) {
-                blockss[k++] = vs.get(x, y, z, true, false);
+                VoxelStorage::ChunkPtr p = vs.get(x, y, z, true, false);
+                if (p.n) {
+                    std::cout << "new" << std::endl;
+                    create_new_chunk(p.b, { x, y, z });
+                }
+                blockss[k++] = p.b;
             }
 //    const uint8_t * blockss = vs.get({ chunk_position.x, chunk_position.y, chunk_position.z }, true, false);
-    const auto block_get = [CHUNK_SIZES, blockss, chunk_position] (glm::ivec3 p) -> uint8_t {
+    const auto block_get = [this, blockss, chunk_position] (glm::ivec3 p) -> uint8_t {
         glm::ivec3 pp = p;
         // floor division
         // r[i] = (x[i] + (x[i] < 0)) / y[i] - (x[i] < 0)
@@ -66,7 +70,6 @@ std::vector<uint8_t> Scene::generateChunkMesh(VoxelStorage & vs, const glm::ivec
     glm::ivec3 i;
 
     const glm::ivec3 offset{ from_block };
-
     for (i[2] = from_block[2]; i[2] < to_block[2]; ++i[2])
         for (i[1] = from_block[1]; i[1] < to_block[1]; ++i[1])
             for (i[0] = from_block[0]; i[0] < to_block[0]; ++i[0])

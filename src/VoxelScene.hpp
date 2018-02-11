@@ -2,14 +2,17 @@
 
 #include <unordered_map>
 #include <glm/vec3.hpp>
+#include <glm/glm.hpp>
 #include "../gl3w/gl3w.h"
 #include "VoxelStorage.hpp"
 #include "MeshIterator.hpp"
 #include "QuadEBO.hpp"
+#include <iostream>
+#include <cmath>
 
-class Scene {
+class VoxelScene {
 public:
-    Scene() : m_mesh_iterator{ 5 } {
+    VoxelScene() : m_mesh_iterator{ 10 } {
 
     }
 
@@ -26,33 +29,57 @@ public:
             }
         }
 
+        size_t this_loop = 0;
         for (size_t i = 0, size = m_mesh_iterator.size(); i < size; ++i) {
             const auto mesh_position = m_mesh_iterator.get(i) + center;
             const auto mesh_iterator = m_meshes.find(mesh_position);
             if (mesh_iterator == m_meshes.end()) {
                 const auto chunk_mesh = generateAndUploadChunkMesh(vs, mesh_position);
+                static size_t j = 0;
+                std::cout << j++ << std::endl;
                 m_meshes.insert({ mesh_position, chunk_mesh });
 
-                break; // TODO: improve
+                // TODO: improve
+                if (this_loop++ > 10) break;
             }
         }
     }
 
     void draw(GLint offset_uniform) {
         auto s = m_meshes.size();
-        const auto CHUNK_SIZES = glm::ivec3{ VoxelStorage::CHUNK_SIZE.x, VoxelStorage::CHUNK_SIZE.y, VoxelStorage::CHUNK_SIZE.z };
         for (const auto & m : m_meshes) {
             if (m.second.element_count > 0) {
                 const auto offset = m.first * CHUNK_SIZES;
                 glUniform3f(offset_uniform, offset.x, offset.y, offset.z);
                 glBindVertexArray(m.second.VAO);
-                glDrawElements(GL_TRIANGLES, m.second.element_count, QuadEBO::type(), 0);
+                glDrawElements(GL_TRIANGLES, m.second.element_count, m_quad_ebo.type(), 0);
                 glBindVertexArray(0);
             }
         }
     }
 
+    glm::ivec3 get_chunk_sizes() const { return CHUNK_SIZES; }
+
 private:
+    glm::ivec3 CHUNK_SIZES{ 16, 16, 16 };
+    QuadEBO m_quad_ebo;
+
+    void create_new_chunk(uint8_t * blocks, const glm::ivec3 & chunk_position) {
+        const glm::ivec3 from_block = chunk_position * CHUNK_SIZES; 
+        const glm::ivec3 to_block = from_block + CHUNK_SIZES; 
+        glm::ivec3 i; 
+        size_t j = 0; 
+        for (i.z = from_block.z; i.z < to_block.z; ++i.z) 
+            for (i.y = from_block.y; i.y < to_block.y; ++i.y) 
+                for (i.x = from_block.x; i.x < to_block.x; ++i.x) { 
+                    if (std::sin(i.x * 0.1f) * std::sin(i.z * 0.1f) * 10.0f > static_cast<float>(i.y)) 
+                        blocks[j] = 1; 
+                    else 
+                        blocks[j] = 0; 
+                    ++j; 
+                }
+    }
+
     struct ChunkMesh {
         GLuint VAO, VBO;
         GLsizei element_count;
@@ -82,8 +109,8 @@ private:
         glGenBuffers(1, &chunk_mesh.VBO);
         glBindVertexArray(chunk_mesh.VAO);
         glBindBuffer(GL_ARRAY_BUFFER, chunk_mesh.VBO);
-        QuadEBO::bind();
-        QuadEBO::resize(chunk_mesh.element_count);
+        m_quad_ebo.bind();
+        m_quad_ebo.resize(chunk_mesh.element_count);
         glVertexAttribIPointer(0, 3, GL_UNSIGNED_BYTE, sizeof(uint8_t) * 8, (GLvoid *)(0));
         glVertexAttribIPointer(1, 1, GL_UNSIGNED_BYTE, sizeof(uint8_t) * 8, (GLvoid *)(3));
         glVertexAttribIPointer(2, 4, GL_UNSIGNED_BYTE, sizeof(uint8_t) * 8, (GLvoid *)(4));

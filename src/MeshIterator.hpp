@@ -3,8 +3,6 @@
 #include <vector>
 #include <glm/vec3.hpp>
 #include <algorithm>
-#include <iostream>
-#include <glm/gtx/string_cast.hpp>
 
 class MeshIterator {
 public:

@@ -14,14 +14,10 @@
 
 #include <zlib.h>
 
-// TODO: remove
-#include <cmath>
-
 //==============================================================================
 constexpr VoxelStorage::u32Vec3 VoxelStorage::CHUNK_POSITION_HASH_SEED;
 constexpr VoxelStorage::u32Vec3 VoxelStorage::REGION_POSITION_HASH_SEED;
 constexpr VoxelStorage::s32Vec3 VoxelStorage::REGION_SIZE;
-constexpr VoxelStorage::s32Vec3 VoxelStorage::CHUNK_SIZE;
 
 //==============================================================================
 template<typename T>
@@ -123,40 +119,23 @@ VoxelStorage::~VoxelStorage() {
 }
 
 //==============================================================================
-VoxelStorage::Block * VoxelStorage::get(int32_t x, int32_t y, int32_t z, bool cache, bool edit) {
-    ChunkNode * c = get_chunk({ x, y, z });
+VoxelStorage::ChunkPtr VoxelStorage::get(int32_t x, int32_t y, int32_t z, bool cache, bool edit) {
+    bool is_new;
+    ChunkNode * c = get_chunk({ x, y, z }, is_new);
     if (edit) c->val.dirty = true;
     // TODO: if (!cache) do not put in cache (get_chunk puts it in cache)
-    return c->val.blocks.data();
+    return { c->val.blocks.data(), is_new };
 }
 
 //==============================================================================
 void VoxelStorage::create_new_chunk(ChunkNode * chunk, const s32Vec3 & chunk_position) {
     assert(chunk != nullptr);
-#if 0
-    for (Block * b = chunk->blocks, * end = chunk->blocks + CHUNK_VOLUME; b < end; ++b) {
-        *b = 0;
-    }
-    chunk->blocks[CHUNK_VOLUME / 2] = 10;
-#else
-    const s32Vec3 from_block{ chunk_position.x * CHUNK_SIZE.x, chunk_position.y * CHUNK_SIZE.y, chunk_position.z * CHUNK_SIZE.z };
-    const s32Vec3 to_block{ from_block.x + CHUNK_SIZE.x, from_block.y + CHUNK_SIZE.y, from_block.z + CHUNK_SIZE.z };
-    s32Vec3 i;
-    size_t j = 0;
-    for (i.z = from_block.z; i.z < to_block.z; ++i.z)
-        for (i.y = from_block.y; i.y < to_block.y; ++i.y)
-            for (i.x = from_block.x; i.x < to_block.x; ++i.x) {
-                if (std::sin(i.x * 0.1f) * std::sin(i.z * 0.1f) * 10.0f > static_cast<float>(i.y))
-                    chunk->val.blocks[j] = 1;
-                else
-                    chunk->val.blocks[j] = 0;
-                ++j;
-            }
-#endif
+    std::fill(chunk->val.blocks.begin(), chunk->val.blocks.end(), Block{ 0 });
 }
 
 //==============================================================================
-VoxelStorage::ChunkNode * VoxelStorage::get_chunk(const s32Vec3 & chunk_position) {
+VoxelStorage::ChunkNode * VoxelStorage::get_chunk(const s32Vec3 & chunk_position, bool & is_new) {
+    is_new = false;
     const uint32_t chunk_index_value = chunk_index(chunk_position);
     ChunkNode * chunk = m_chunk_LRU.get_node(chunk_position, chunk_index_value);
     if (chunk != nullptr) return chunk;
@@ -198,6 +177,7 @@ VoxelStorage::ChunkNode * VoxelStorage::get_chunk(const s32Vec3 & chunk_position
         //       if not, the default chunk should not be cached if the creation is trivial
         create_new_chunk(chunk, chunk_position);
         chunk->val.dirty = true;
+        is_new = true;
     }
 
     assert(chunk != nullptr);
@@ -336,9 +316,11 @@ VoxelStorage::RegionNode * VoxelStorage::get_region(const s32Vec3 & region_posit
     // 'world/' + 3 * numbers + 2 * '|' + '\0'
     static constexpr size_t MAX_FILE_NAME_LENGTH{ 6 + 3 * 11 + 2 + 1 };
     char file_name[MAX_FILE_NAME_LENGTH];
+    const char * folder_na = "world";
     static_assert(sizeof(int32_t) == sizeof(int));
     std::snprintf(
-        file_name, MAX_FILE_NAME_LENGTH, "world/%i|%i|%i",
+        file_name, MAX_FILE_NAME_LENGTH, "%s/%i|%i|%i",
+        folder_na,
         region_position.x, region_position.y, region_position.z
     );
     //Region * r = region->val;

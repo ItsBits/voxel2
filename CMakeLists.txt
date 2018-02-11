@@ -15,12 +15,10 @@ set(SOURCE_FILES
     src/VoxelStorage.hpp
     src/VoxelStorage.cpp
     src/Window.hpp
-    src/Window.cpp
-    src/Scene.hpp
+    src/VoxelScene.hpp
+    src/VoxelScene.cpp
     src/MeshIterator.hpp
-    src/Scene.cpp
     src/QuadEBO.hpp
-    src/QuadEBO.cpp
 )
 
 add_executable(voxel ${SOURCE_FILES})

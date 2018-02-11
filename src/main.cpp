@@ -1,6 +1,7 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <cstdlib>
 
 #include "../gl3w/gl3w.h"
 
@@ -11,11 +12,12 @@
 #include "Player.hpp"
 #include <glm/gtx/string_cast.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#include "Scene.hpp"
+#include "VoxelScene.hpp"
 #include "Shader.hpp"
 #include "Monostable.hpp"
 
 int main() {
+    //std::system("rm world/*");
     Window::Hints window_hints;
     window_hints.gl_major = 3;
     window_hints.gl_minor = 1;
@@ -44,7 +46,7 @@ int main() {
     Camera<float> camera{};
     Player<float> player;
     Input input{ window.getWindowPtr() };
-    Scene scene{};
+    VoxelScene scene{};
     Shader scene_shader{
         {
             { "shader/block.vert", GL_VERTEX_SHADER },
@@ -76,7 +78,7 @@ int main() {
         if (q_button.state()) window.toggleMouse();
 
         scene_shader.use();
-        glm::ivec3 center = player.getPosition() / glm::vec3{ VoxelStorage::CHUNK_SIZE.x, VoxelStorage::CHUNK_SIZE.y, VoxelStorage::CHUNK_SIZE.z };
+        glm::ivec3 center = player.getPosition() / glm::vec3{ scene.get_chunk_sizes() };
         scene.update(voxel_storage, center);
         const auto VP_matrix = camera.getViewProjectionMatrix();
         glUniformMatrix4fv(VP_uniform, 1, GL_FALSE, glm::value_ptr(VP_matrix));
