@@ -4,11 +4,16 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 #include "../gl3w/gl3w.h"
-#include "VoxelStorage.hpp"
+#include "VoxelMap.hpp"
 #include "MeshIterator.hpp"
 #include "QuadEBO.hpp"
 #include <iostream>
 #include <cmath>
+
+#include "Mesh.hpp"
+#include "LockedQueue.hpp"
+
+#include <glm/gtx/string_cast.hpp>
 
 class VoxelScene {
 public:
@@ -16,7 +21,8 @@ public:
 
     }
 
-    void update(VoxelStorage & vs, const glm::ivec3 & center) {
+    void update(const glm::ivec3 & center, LockedQueue<Mesh> & queue) {
+        /*
         for(auto m = m_meshes.begin(); m != m_meshes.end();) {
             const glm::ivec3 distance = glm::abs(center - m->first);
             const int r = m_mesh_iterator.getRadius();
@@ -27,21 +33,33 @@ public:
             } else {
                 ++m;
             }
-        }
+        }*/
 
-        size_t this_loop = 0;
-        for (size_t i = 0, size = m_mesh_iterator.size(); i < size; ++i) {
-            const auto mesh_position = m_mesh_iterator.get(i) + center;
-            const auto mesh_iterator = m_meshes.find(mesh_position);
-            if (mesh_iterator == m_meshes.end()) {
-                const auto chunk_mesh = generateAndUploadChunkMesh(vs, mesh_position);
-                static size_t j = 0;
-                std::cout << j++ << std::endl;
-                m_meshes.insert({ mesh_position, chunk_mesh });
+        Mesh m;
+        while (queue.pop(std::move(m))) {
+            ChunkMesh chunk_mesh;
+            const size_t vetrex_count = m.mesh.size();
+            // size should always be divisible by 2
+            chunk_mesh.element_count = vetrex_count + (vetrex_count / 2);
 
-                // TODO: improve
-                if (this_loop++ > 10) break;
-            }
+            glGenVertexArrays(1, &chunk_mesh.VAO);
+            glGenBuffers(1, &chunk_mesh.VBO);
+            glBindVertexArray(chunk_mesh.VAO);
+            glBindBuffer(GL_ARRAY_BUFFER, chunk_mesh.VBO);
+            m_quad_ebo.bind();
+            m_quad_ebo.resize(chunk_mesh.element_count);
+            glVertexAttribIPointer(0, 3, GL_UNSIGNED_BYTE, sizeof(cfg::Vertex), (GLvoid *)(0));
+            glVertexAttribIPointer(1, 1, GL_UNSIGNED_BYTE, sizeof(cfg::Vertex), (GLvoid *)(3));
+            glVertexAttribIPointer(2, 4, GL_UNSIGNED_BYTE, sizeof(cfg::Vertex), (GLvoid *)(4));
+            glEnableVertexAttribArray(0);
+            glEnableVertexAttribArray(1);
+            glEnableVertexAttribArray(2);
+            glBindVertexArray(0);
+
+            glBindBuffer(GL_ARRAY_BUFFER, chunk_mesh.VBO);
+            glBufferData(GL_ARRAY_BUFFER, m.mesh.size() * sizeof(m.mesh[0]), m.mesh.data(), GL_STATIC_DRAW);
+
+            m_meshes.insert({ m.position, chunk_mesh });
         }
     }
 
@@ -49,7 +67,7 @@ public:
         auto s = m_meshes.size();
         for (const auto & m : m_meshes) {
             if (m.second.element_count > 0) {
-                const auto offset = m.first * CHUNK_SIZES;
+                const auto offset = m.first * cfg::MESH_SIZE + cfg::MESH_OFFSET;
                 glUniform3f(offset_uniform, offset.x, offset.y, offset.z);
                 glBindVertexArray(m.second.VAO);
                 glDrawElements(GL_TRIANGLES, m.second.element_count, m_quad_ebo.type(), 0);
@@ -92,12 +110,13 @@ private:
     bool operator()(const glm::ivec3 & lhs, const glm::ivec3 & rhs) const {
         return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
     }};
+    // TODO: use Coord (cfg.hpp)
     std::unordered_map<glm::ivec3, ChunkMesh, KeyHash, KeyEqual> m_meshes;
     MeshIterator m_mesh_iterator;
 
-    std::vector<uint8_t> generateChunkMesh(VoxelStorage & vs, const glm::ivec3 & chunk_position);
+    std::vector<uint8_t> generateChunkMesh(VoxelMap & vs, const glm::ivec3 & chunk_position);
 
-    ChunkMesh generateAndUploadChunkMesh(VoxelStorage & vs, const glm::ivec3 & chunk_position) {
+    ChunkMesh generateAndUploadChunkMesh(VoxelMap & vs, const glm::ivec3 & chunk_position) {
         std::vector<uint8_t> mesh = generateChunkMesh(vs, chunk_position);
 
         ChunkMesh chunk_mesh;

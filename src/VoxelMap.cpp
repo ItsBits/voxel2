@@ -1,4 +1,4 @@
-#include "VoxelStorage.hpp"
+#include "VoxelMap.hpp"
 
 #include <iostream>
 
@@ -15,58 +15,9 @@
 #include <zlib.h>
 
 //==============================================================================
-constexpr VoxelStorage::u32Vec3 VoxelStorage::CHUNK_POSITION_HASH_SEED;
-constexpr VoxelStorage::u32Vec3 VoxelStorage::REGION_POSITION_HASH_SEED;
-constexpr VoxelStorage::s32Vec3 VoxelStorage::REGION_SIZE;
-
-//==============================================================================
-template<typename T>
-static bool all_equal(const T & a, const T & b) {
-    return a.x == b.x && a.y == b.y && a.z == b.z;
-}
-
-//==============================================================================
-template<typename T>
-static T mul(const T & a, const T & b) {
-    return T{ a.x * b.x, a.y * b.y, a.z * b.z };
-}
-
-//==============================================================================
-template<typename T>
-static T floor_div(const T & a, const T & b) {
-    // compiler might not generate best possible code
-    // in case second arument is constexpr power of 2
-    T tmp;
-    tmp.x = (a.x + (a.x < 0)) / b.x - (a.x < 0);
-    tmp.y = (a.y + (a.y < 0)) / b.y - (a.y < 0);
-    tmp.z = (a.z + (a.z < 0)) / b.z - (a.z < 0);
-    return tmp;
-}
-
-//==============================================================================
-template<typename T>
-static T floor_mod(const T & a, const T & b) {
-    // compiler might not generate best possible code
-    // in case second arument is constexpr power of 2
-    T tmp;
-    tmp.x = (a.x % b.x + b.x) % b.x;
-    tmp.y = (a.y % b.y + b.y) % b.y;
-    tmp.z = (a.z % b.z + b.z) % b.z;
-    return tmp;
-}
-
-//==============================================================================
-template<typename T>
-static typename T::element_type to_index(const T & p, const T & s) {
-    return p.z * s.y * s.x + p.y * s.x + p.x;
-}
-
-//==============================================================================
-template<typename T>
-static typename T::element_type position_to_index(const T & p, const T & s) {
-    return to_index(floor_mod(p, s), s);
-}
-
+constexpr u32Vec3 VoxelMap::CHUNK_POSITION_HASH_SEED;
+constexpr u32Vec3 VoxelMap::REGION_POSITION_HASH_SEED;
+constexpr s32Vec3 VoxelMap::REGION_SIZE;
 
 //==============================================================================
 //==============================================================================
@@ -76,7 +27,7 @@ static typename T::element_type position_to_index(const T & p, const T & s) {
 
 
 //==============================================================================
-VoxelStorage::VoxelStorage() : c_maximum_compressed_size{ compressBound(CHUNK_VOLUME * sizeof(Block)) } {
+VoxelMap::VoxelMap() : c_maximum_compressed_size{ compressBound(CHUNK_VOLUME * sizeof(Block)) } {
     std::cout << "Memory usage in bytes:" << std::endl;
     std::cout << "Chunk Heap: " << sizeof(Chunk) * CHUNK_HEAP_SIZE << std::endl;
     std::cout << "Region Heap: " << sizeof(Region) * REGION_HEAP_SIZE << std::endl;
@@ -92,7 +43,7 @@ VoxelStorage::VoxelStorage() : c_maximum_compressed_size{ compressBound(CHUNK_VO
 }
 
 //==============================================================================
-VoxelStorage::~VoxelStorage() {
+VoxelMap::~VoxelMap() {
     while (true) {
         ChunkNode * chunk = m_chunk_LRU.remove_lru_node();
         if (chunk == nullptr) break;
@@ -119,7 +70,7 @@ VoxelStorage::~VoxelStorage() {
 }
 
 //==============================================================================
-VoxelStorage::ChunkPtr VoxelStorage::get(int32_t x, int32_t y, int32_t z, bool cache, bool edit) {
+VoxelMap::ChunkPtr VoxelMap::get(int32_t x, int32_t y, int32_t z, bool cache, bool edit) {
     bool is_new;
     ChunkNode * c = get_chunk({ x, y, z }, is_new);
     if (edit) c->val.dirty = true;
@@ -128,13 +79,13 @@ VoxelStorage::ChunkPtr VoxelStorage::get(int32_t x, int32_t y, int32_t z, bool c
 }
 
 //==============================================================================
-void VoxelStorage::create_new_chunk(ChunkNode * chunk, const s32Vec3 & chunk_position) {
+void VoxelMap::create_new_chunk(ChunkNode * chunk, const s32Vec3 & chunk_position) {
     assert(chunk != nullptr);
     std::fill(chunk->val.blocks.begin(), chunk->val.blocks.end(), Block{ 0 });
 }
 
 //==============================================================================
-VoxelStorage::ChunkNode * VoxelStorage::get_chunk(const s32Vec3 & chunk_position, bool & is_new) {
+VoxelMap::ChunkNode * VoxelMap::get_chunk(const s32Vec3 & chunk_position, bool & is_new) {
     is_new = false;
     const uint32_t chunk_index_value = chunk_index(chunk_position);
     ChunkNode * chunk = m_chunk_LRU.get_node(chunk_position, chunk_index_value);
@@ -186,7 +137,7 @@ VoxelStorage::ChunkNode * VoxelStorage::get_chunk(const s32Vec3 & chunk_position
 }
 
 //==============================================================================
-uint32_t VoxelStorage::chunk_index(const s32Vec3 & chunk_position) {
+uint32_t VoxelMap::chunk_index(const s32Vec3 & chunk_position) {
     const u32Vec3 unsigned_chunk_position{
         static_cast<uint32_t>(chunk_position.x),
         static_cast<uint32_t>(chunk_position.y),
@@ -197,7 +148,7 @@ uint32_t VoxelStorage::chunk_index(const s32Vec3 & chunk_position) {
 }
 
 //==============================================================================
-uint32_t VoxelStorage::region_index(const s32Vec3 & region_position) {
+uint32_t VoxelMap::region_index(const s32Vec3 & region_position) {
     const u32Vec3 unsigned_region_position{
         static_cast<uint32_t>(region_position.x),
         static_cast<uint32_t>(region_position.y),
@@ -208,7 +159,7 @@ uint32_t VoxelStorage::region_index(const s32Vec3 & region_position) {
 }
 
 //==============================================================================
-void VoxelStorage::close_chunk(ChunkNode * chunk) {
+void VoxelMap::close_chunk(ChunkNode * chunk) {
     assert(chunk != nullptr);
     if (!chunk->val.dirty) return;
 
@@ -253,7 +204,7 @@ void VoxelStorage::close_chunk(ChunkNode * chunk) {
 }
 
 //==============================================================================
-void VoxelStorage::defragment_region(RegionNode * region) {
+void VoxelMap::defragment_region(RegionNode * region) {
     assert(region != nullptr);
     
     uint32_t * raw_start = m_defragment_buffer_raw.get();
@@ -300,7 +251,7 @@ void VoxelStorage::defragment_region(RegionNode * region) {
 }
 
 //==============================================================================
-VoxelStorage::RegionNode * VoxelStorage::get_region(const s32Vec3 & region_position) {
+VoxelMap::RegionNode * VoxelMap::get_region(const s32Vec3 & region_position) {
     const uint32_t region_index_value = region_index(region_position);
     RegionNode * region = m_region_LRU.get_node(region_position, region_index_value);
     if (region != nullptr) return region;
@@ -347,7 +298,7 @@ VoxelStorage::RegionNode * VoxelStorage::get_region(const s32Vec3 & region_posit
 }
 
 //==============================================================================
-void VoxelStorage::close_region(RegionNode * region) {
+void VoxelMap::close_region(RegionNode * region) {
     assert(region != nullptr);
     if (region->val.fd < 0) return;
     uint32_t eg[2]{ region->val.end, region->val.garbage };
@@ -355,130 +306,24 @@ void VoxelStorage::close_region(RegionNode * region) {
     close(region->val.fd);
 }
 
-
 //==============================================================================
 //==============================================================================
 //==============================================================================
 //==============================================================================
 //==============================================================================
 
-
 //==============================================================================
-template<typename T, uint32_t N>
-T * VoxelStorage::LeastRecentlyUsed<T, N>::get_node(const s32Vec3 & node_position, uint32_t node_index) {
-    assert(node_index < N);
-    T * node = m_map[node_index];
-    while (node != nullptr && !all_equal(node_position, node->key))
-        node = node->down;
-
-    // move to most recently used
-    if (node != nullptr) {
-        // TODO: only move in map if not top
-        // TODO: only move in list if not front
-        remove_node(node);
-        add_node(node, node_index);
-    }
-    return node;
-}
-
-//==============================================================================
-template<typename T, uint32_t N>
-void VoxelStorage::LeastRecentlyUsed<T, N>::add_node(T * node, uint32_t index) {
-    assert(node != nullptr);
-    // add to map
-    assert(index < N);
-    node->head = m_map + index;
-    node->down = m_map[index];
-    m_map[index] = node;
-    // add to list
-    node->prev = nullptr;
-    node->next = m_front;
-    if (m_front != nullptr)
-        m_front->prev = node;
-    else
-        m_back = node;
-    m_front = node;
-}
-
-//==============================================================================
-template<typename T, uint32_t N>
-T * VoxelStorage::LeastRecentlyUsed<T, N>::remove_lru_node() {
-    T * lru = m_back;
-    if (lru != nullptr)
-        remove_node(lru);
-    return lru;
-}
-
-//==============================================================================
-template<typename T, uint32_t N>
-void VoxelStorage::LeastRecentlyUsed<T, N>::remove_node(T * node) {
-    assert(node != nullptr);
-
-    // remove from map
-    T * * i = node->head;
-    while (*i != node) {
-        assert(*i != nullptr);
-        i = &(*i)->down;
-    }
-    *i = node->down;
-
-    // remove from list
-    if (node->prev != nullptr)
-        node->prev->next = node->next;
-    else
-        m_front = node->next;
-    if (node->next != nullptr)
-        node->next->prev = node->prev;
-    else
-        m_back = node->prev;
-}
-
-//==============================================================================
-template<typename T, uint32_t N>
-VoxelStorage::LeastRecentlyUsed<T, N>::LeastRecentlyUsed() {
-    std::fill(std::begin(m_map), std::end(m_map), nullptr);
-    m_free_list = nullptr;
-    m_front = nullptr;
-    m_back = nullptr;
-}
-
-//==============================================================================
-template<typename T, uint32_t N>
-void VoxelStorage::LeastRecentlyUsed<T, N>::add_to_heap(T * node) {
-    assert(node != nullptr);
-    node->next = m_free_list;
-    m_free_list = node;
-}
-
-//==============================================================================
-template<typename T, uint32_t N>
-T * VoxelStorage::LeastRecentlyUsed<T, N>::get_from_heap() {
-    T * node = m_free_list;
-    if (node != nullptr)
-        m_free_list = node->next;
-    return node;
-}
-
-
-//==============================================================================
-//==============================================================================
-//==============================================================================
-//==============================================================================
-//==============================================================================
-
-
-//==============================================================================
-void VoxelStorage::Region::read(void * buffer, size_t count, size_t position) {
+void VoxelMap::Region::read(void * buffer, size_t count, size_t position) {
     pread(fd, buffer, count, position);
 }
 
 //==============================================================================
-void VoxelStorage::Region::write(const void * buffer, size_t count, size_t position) {
+void VoxelMap::Region::write(const void * buffer, size_t count, size_t position) {
     pwrite(fd, buffer, count, position);
 }
 
 //==============================================================================
-bool VoxelStorage::Region::open_file(const char * const file_name) {
+bool VoxelMap::Region::open_file(const char * const file_name) {
     fd = open(file_name, O_RDWR | O_CREAT, 0666);
     struct stat file_info;
     const auto result = fstat(fd, &file_info);

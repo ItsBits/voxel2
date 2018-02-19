@@ -1,0 +1,42 @@
+#pragma once
+
+#include <array>
+#include <thread>
+#include <atomic>
+
+#include "cfg.hpp"
+#include "VoxelIterator.hpp"
+#include "LockedQueue.hpp"
+#include "Mesh.hpp"
+
+class VoxelContainer {
+public:
+    VoxelContainer();
+    ~VoxelContainer();
+
+    LockedQueue<Mesh> & getQueue() { return m_mesh_queue; }
+
+private:
+    LockedQueue<Mesh> m_mesh_queue;
+    std::array<cfg::Block, cfg::CHUNK_VOLUME * cfg::CHUNK_ARRAY_VOLUME> m_blocks;
+    std::array<glm::tvec3<cfg::Coord>, cfg::CHUNK_ARRAY_VOLUME> m_chunk_positions;
+    VoxelIterator m_voxel_indices;
+    std::array<std::thread, cfg::WORKER_THREAD_COUNT> m_workers;
+    std::atomic_bool m_workers_running;
+    std::atomic_size_t m_iterator;
+    glm::tvec3<cfg::Coord> m_center_chunk;
+    using MeshReadinesType = uint8_t;
+    std::array<std::atomic<MeshReadinesType>, cfg::MESH_ARRAY_VOLUME> m_mesh_readines;
+    std::array<glm::tvec3<cfg::Coord>, cfg::MESH_ARRAY_VOLUME> m_mesh_positions;
+    //std::array<std::vector<cfg::Vertex>, cfg::MESH_ARRAY_VOLUME> m_meshes;
+
+    static_assert(cfg::MESH_CHUNK_VOLUME == 8);
+    static constexpr MeshReadinesType ALL_CHUNKS_READY{ 0b11111111 };
+
+    void worker();
+    void clearMeshReadines();
+    std::size_t markMeshes(const glm::tvec3<cfg::Coord> & chunk_position, std::array<glm::tvec3<cfg::Coord>, cfg::CHUNK_MESH_VOLUME> & meshes_to_load);
+    void generateChunk(cfg::Block * chunk, const glm::tvec3<cfg::Coord> & chunk_position);
+    void generateMesh(const glm::tvec3<cfg::Coord> & mesh_position, std::vector<cfg::Vertex> & mesh);
+
+};

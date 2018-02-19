@@ -1,61 +1,126 @@
-#include "VoxelScene.hpp"
-#include <vector>
+#include "VoxelArray.hpp"
 
-//==============================================================================
-static inline std::uint8_t vertexAO(const bool side_a, const bool side_b, const bool corner)
-{
-#if 0
-    // is this branch free version correct?
-    corner = corner || side_a && side_b;
-    return (uint8_t)corner + (uint8_t)side_a + (uint8_t)size_b;
-#endif
-
-    if (side_a && side_b) return 3;
-
-    return
-        static_cast<std::uint8_t>(side_a) +
-        static_cast<std::uint8_t>(side_b) +
-        static_cast<std::uint8_t>(corner);
+VoxelArray::VoxelArray() {
+    m_running = true;
+    m_workers[0] = std::thread{ &VoxelArray::worker, this };
 }
 
-//==============================================================================
-std::vector<uint8_t> VoxelScene::generateChunkMesh(VoxelMap & vs, const glm::ivec3 & chunk_position) {
-    const glm::ivec3 from_block{ chunk_position * CHUNK_SIZES };
-    const glm::ivec3 to_block{ from_block + CHUNK_SIZES };
-    const uint8_t * blockss[27];
+VoxelArray::~VoxelArray() {
+    m_running = false;
+    m_workers[0].join();
+}
+
+void VoxelArray::update(const glm::ivec3 & center) {
+    /*const Vec3<int8_t> r = m_iterator.getRadius();
+    for(auto m = m_meshes.begin(); m != m_meshes.end();) {
+        const glm::ivec3 pp{ m->position.x, m->position.y, m->position.z };
+        const glm::ivec3 distance = glm::abs(center - pp);
+        if (distance.x > r.x || distance.y > r.y || distance.z > r.z) {
+            glDeleteBuffers(1, &m->VBO);
+            glDeleteVertexArrays(1, &m->VAO);
+            m = m_meshes.erase(m);
+        } else {
+            ++m;
+        }
+    }*/
+
+    size_t this_loop = 0;
+    const auto & iter = m_iterator.indices();
+    int64_t index = -1;
+    //for (size_t i = 0, size = it.size(); i < size; ++i) {
+    for (const auto & i : iter) {
+        ++index;
+        int8_t type = i.w;
+        glm::ivec3 p{ i.x, i.y, i.z };
+        p += center;
+
+        if (type == VoxelArrayIterator::LOAD_CHUNK) {
+            const glm::ivec3 pp{
+                floor_mod_i(p.x, cfg::CHUNK_ARRAY_SIZE_X),
+                floor_mod_i(p.y, cfg::CHUNK_ARRAY_SIZE_Y),
+                floor_mod_i(p.z, cfg::CHUNK_ARRAY_SIZE_Z)
+                };
+
+            ChunkMeta * chunk_meta = m_positions.get(pp.x, pp.y, pp.z);
+            if (!all_equal(chunk_meta->position, {p.x, p.y, p.z})) {
+                // TODO: fix, don't cast to uint8_t
+                m_tasks.push({ (int8_t)p.x, (int8_t)p.y, (int8_t)p.z, VoxelArrayIterator::LOAD_CHUNK });
+                ++this_loop;
+            }
+        } else if (type == VoxelArrayIterator::LOAD_MESH) {
+
+        } else {
+            assert(0);
+        }
+
+        if (this_loop++ > 10) break;
+
+/*
+        const auto mesh_position = p + center;
+        const auto mesh_iterator = m_meshes.find(mesh_position);
+        if (mesh_iterator == m_meshes.end()) {
+            const auto chunk_mesh = generateAndUploadChunkMesh(vs, mesh_position);
+            static size_t j = 0;
+            std::cout << j++ << std::endl;
+            m_meshes.insert({ mesh_position, chunk_mesh });
+
+            // TODO: improve
+            if (this_loop++ > 10) break;
+        }
+*/
+    }
+}
+
+std::vector<uint8_t> VoxelArray::generateChunkMesh(const Vec3<int32_t> & mesh_positionn) {
+    const glm::ivec3 mesh_position{ mesh_positionn.x, mesh_positionn.y, mesh_positionn.z };
+    constexpr glm::ivec3 MESH_SIZES{ cfg::MESH_SIZE_X, cfg::MESH_SIZE_Y, cfg::MESH_SIZE_Z };
+    constexpr glm::ivec3 MESH_OFFSETS{ cfg::MESH_OFFSET_X, cfg::MESH_OFFSET_Y, cfg::MESH_OFFSET_Z };
+    const glm::ivec3 from_block{ mesh_position * MESH_SIZES + MESH_OFFSETS };
+    const glm::ivec3 to_block{ from_block + MESH_SIZES };
+    const uint8_t * blockss[8];
+    static_assert(MESH_SIZES.x == cfg::CHUNK_SIZE_X);
+    static_assert(MESH_SIZES.y == cfg::CHUNK_SIZE_Y);
+    static_assert(MESH_SIZES.z == cfg::CHUNK_SIZE_Z);
+    static_assert(cfg::MESH_OFFSET_X > 0);
+    static_assert(cfg::MESH_OFFSET_Y > 0);
+    static_assert(cfg::MESH_OFFSET_Z > 0);
+    static_assert(cfg::MESH_OFFSET_X < MESH_SIZES.x);
+    static_assert(cfg::MESH_OFFSET_Y < MESH_SIZES.y);
+    static_assert(cfg::MESH_OFFSET_Z < MESH_SIZES.z);
     size_t k = 0;
-    for (int z = chunk_position.z - 1; z <= chunk_position.z + 1; ++z)
-        for (int y = chunk_position.y - 1; y <= chunk_position.y + 1; ++y)
-            for (int x = chunk_position.x - 1; x <= chunk_position.x + 1; ++x) {
-                VoxelMap::ChunkPtr p = vs.get(x, y, z, true, false);
-                if (p.n) {
-//                    std::cout << "new" << std::endl;
-                    create_new_chunk(p.b, { x, y, z });
-                }
-                blockss[k++] = p.b;
+    for (int z = mesh_positionn.z; z <= mesh_positionn.z + 1; ++z)
+        for (int y = mesh_positionn.y; y <= mesh_positionn.y + 1; ++y)
+            for (int x = mesh_positionn.x; x <= mesh_positionn.x + 1; ++x) {
+                const int32_t xxx = floor_mod_i(x, cfg::CHUNK_ARRAY_SIZE_X);
+                const int32_t yyy = floor_mod_i(y, cfg::CHUNK_ARRAY_SIZE_Y);
+                const int32_t zzz = floor_mod_i(z, cfg::CHUNK_ARRAY_SIZE_Z);
+                ChunkMeta * chunk_meta = m_positions.get(xxx, yyy, zzz);
+                assert(all_equal(Vec3<int32_t>{ x, y, z }, chunk_meta->position));
+                Block * blocks = m_chunks.get(xxx, yyy, zzz);
+                blockss[k++] = blocks;
             }
 //    const uint8_t * blockss = vs.get({ chunk_position.x, chunk_position.y, chunk_position.z }, true, false);
-    const auto block_get = [this, blockss, chunk_position] (glm::ivec3 p) -> uint8_t {
+    const auto block_get = [this, blockss, mesh_position] (glm::ivec3 p) -> uint8_t {
         glm::ivec3 pp = p;
         // floor division
         // r[i] = (x[i] + (x[i] < 0)) / y[i] - (x[i] < 0)
-        pp.x = (pp.x + (pp.x < 0)) / CHUNK_SIZES.x - (pp.x < 0);
-        pp.y = (pp.y + (pp.y < 0)) / CHUNK_SIZES.y - (pp.y < 0);
-        pp.z = (pp.z + (pp.z < 0)) / CHUNK_SIZES.z - (pp.z < 0);
+        pp.x = (pp.x + (pp.x < 0)) / cfg::CHUNK_SIZE_X - (pp.x < 0);
+        pp.y = (pp.y + (pp.y < 0)) / cfg::CHUNK_SIZE_Y - (pp.y < 0);
+        pp.z = (pp.z + (pp.z < 0)) / cfg::CHUNK_SIZE_Z - (pp.z < 0);
         // TODO: handle out of ranges (aka. decouble mesh from chunk)
 //        if (pp.x != chunk_position.x || pp.y != chunk_position.y || pp.z != chunk_position.z)
 //            return 0;
-        pp -= chunk_position - 1;
+        pp -= mesh_position - 1;
         assert(pp.x >= 0 && pp.y >= 0 && pp.z >= 0 && pp.x < 3 && pp.y < 3 && pp.z < 3);
 
 
         // floor modulus
         // r[i] = (x[i] % y[i] + y[i]) % y[i]
-        p.x = (p.x % CHUNK_SIZES.x + CHUNK_SIZES.x) % CHUNK_SIZES.x;
-        p.y = (p.y % CHUNK_SIZES.y + CHUNK_SIZES.y) % CHUNK_SIZES.y;
-        p.z = (p.z % CHUNK_SIZES.z + CHUNK_SIZES.z) % CHUNK_SIZES.z;
+        p.x = (p.x % cfg::CHUNK_SIZE_X + cfg::CHUNK_SIZE_X) % cfg::CHUNK_SIZE_X;
+        p.y = (p.y % cfg::CHUNK_SIZE_Y + cfg::CHUNK_SIZE_Y) % cfg::CHUNK_SIZE_Y;
+        p.z = (p.z % cfg::CHUNK_SIZE_Z + cfg::CHUNK_SIZE_Z) % cfg::CHUNK_SIZE_Z;
         // TODO: don't hardcode lookup array dimensions (but calculate from mesh dimensions)
-        return blockss[pp.z * 9 + pp.y * 3 + pp.x][p.z * CHUNK_SIZES.y * CHUNK_SIZES.x + p.y * CHUNK_SIZES.x + p.x];
+        return blockss[pp.z * 9 + pp.y * 3 + pp.x][p.z * cfg::CHUNK_SIZE_Y * cfg::CHUNK_SIZE_X + p.y * cfg::CHUNK_SIZE_X + p.x];
     };
 
     struct Vertex {

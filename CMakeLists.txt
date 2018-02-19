@@ -12,13 +12,25 @@ set(SOURCE_FILES
     src/Player.hpp
     src/Shader.hpp
     src/Shader.cpp
-    src/VoxelStorage.hpp
-    src/VoxelStorage.cpp
+    src/VoxelMap.hpp
+    src/VoxelMap.cpp
     src/Window.hpp
     src/VoxelScene.hpp
     src/VoxelScene.cpp
     src/MeshIterator.hpp
     src/QuadEBO.hpp
+    src/LRUH.hpp
+    src/SparseMap.hpp
+    src/VoxelArray.hpp
+    src/VoxelArray.cpp
+    src/VoxelContainer.hpp
+    src/VoxelContainer.cpp
+    src/VoxelIterator.hpp
+    src/VoxelIterator.cpp
+    src/mesher.hpp
+    src/mesher.cpp
+    src/Region.hpp
+    src/Region.cpp
 )
 
 add_executable(voxel ${SOURCE_FILES})

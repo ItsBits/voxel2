@@ -7,7 +7,7 @@
 
 #include "Window.hpp"
 #include "Input.hpp"
-#include "VoxelStorage.hpp"
+#include "VoxelMap.hpp"
 #include "Camera.hpp"
 #include "Player.hpp"
 #include <glm/gtx/string_cast.hpp>
@@ -15,8 +15,40 @@
 #include "VoxelScene.hpp"
 #include "Shader.hpp"
 #include "Monostable.hpp"
+#include "VoxelArray.hpp"
+#include "VoxelContainer.hpp"
+#include "LockedQueue.hpp"
 
+// TODO: remove
+//#include "Task.hpp"
+
+#include "cfg.hpp"
+
+#include "Print.hpp"
+
+
+//static constexpr const glm::ivec3 TEst{ 1, 2, 5 };
 int main() {
+    //Print("banana", 123, 't');
+//    LockedQueue<Mesh> mesh_update_queue;
+    //mesh_update_queue.push({});
+    //Mesh test;
+    //bool r = mesh_update_queue.pop(std::move(test));
+
+    /*{
+        std::cout << "Construct" << std::endl;
+        VoxelContainer * vc = new VoxelContainer;
+        delete vc;
+        std::cout << "Destruct" << std::endl;
+    }*/
+    //static_assert(TEst.x == 1);
+    //std::unique_ptr<VoxelArray> testt = std::make_unique<VoxelArray>();
+    std::unique_ptr<VoxelContainer> vc = std::make_unique<VoxelContainer>();
+
+    LockedQueue<Mesh> & q = vc->getQueue();
+    //VoxelArray test;
+    //VoxelContainer vc;
+
     //std::system("rm world/*");
     Window::Hints window_hints;
     window_hints.gl_major = 3;
@@ -42,7 +74,7 @@ int main() {
     glEnable(GL_CULL_FACE);
 
     Monostable q_button;
-    VoxelStorage voxel_storage{};
+    VoxelMap voxel_storage{};
     Camera<float> camera{};
     Player<float> player;
     Input input{ window.getWindowPtr() };
@@ -79,7 +111,8 @@ int main() {
 
         scene_shader.use();
         glm::ivec3 center = player.getPosition() / glm::vec3{ scene.get_chunk_sizes() };
-        scene.update(voxel_storage, center);
+        scene.update(center, q);
+//        Print(glm::to_string(player.getPosition()));
         const auto VP_matrix = camera.getViewProjectionMatrix();
         glUniformMatrix4fv(VP_uniform, 1, GL_FALSE, glm::value_ptr(VP_matrix));
         scene.draw(offset_uniform);

@@ -4,7 +4,10 @@
 #include <cstddef>
 #include <memory>
 
-class VoxelStorage {
+#include "LRUH.hpp"
+#include "Algebra.hpp"
+
+class VoxelMap {
     /* CONFIGURATION */
 public:
     using Block = uint8_t;
@@ -21,21 +24,14 @@ private:
     /* END OF CONFIGURATION */
 
 public:
-    VoxelStorage();
-    ~VoxelStorage();
+    VoxelMap();
+    ~VoxelMap();
     struct ChunkPtr { Block * b; bool n; };
     ChunkPtr get(int32_t x, int32_t y, int32_t z, bool cache, bool edit);
     size_t memory_size() const { return CHUNK_HEAP_SIZE; }
 
 
 private:
-    template<typename T> struct Vec3 { 
-        using element_type = T;
-        T x, y, z; 
-    };
-    using s32Vec3 = Vec3<int32_t>;
-    using u32Vec3 = Vec3<uint32_t>;
-
     static constexpr s32Vec3 REGION_SIZE{ REGION_SIZE_X, REGION_SIZE_Y, REGION_SIZE_Z };
     static constexpr int32_t REGION_VOLUME{ REGION_SIZE.x * REGION_SIZE.y * REGION_SIZE.z };
 
@@ -43,18 +39,6 @@ private:
     // TODO: choose factors at runtime and rehash when hash collision attack detected?
     static constexpr u32Vec3 CHUNK_POSITION_HASH_SEED{ 73856093, 19349663, 83492791 };
     static constexpr u32Vec3 REGION_POSITION_HASH_SEED{ 73856093, 19349663, 83492791 };
-
-    template <typename K, typename V>
-    struct MapNode {
-        K key;
-        V val;
-        // list
-        MapNode * next;
-        MapNode * prev;
-        // map
-        MapNode * * head;
-        MapNode * down;
-    };
 
     struct Chunk {
         std::array<Block, CHUNK_VOLUME> blocks;
@@ -73,32 +57,6 @@ private:
 
     using ChunkNode = MapNode<s32Vec3, Chunk>;
     using RegionNode = MapNode<s32Vec3, Region>;
-
-    template<typename T, uint32_t N>
-    class LeastRecentlyUsed {
-        // 2-in-1: LRU cache and unused cache
-    public:
-        LeastRecentlyUsed();
-
-        T * get_node(const s32Vec3 & node_position, uint32_t node_index);
-        T * get_from_heap();
-        T * remove_lru_node();
-        void add_node(T * node, uint32_t index);
-        // only constructor and destructor calls it:
-        void add_to_heap(T * node);
-
-    private:
-        // LRU map
-        T * m_map[N];
-        // free heap list
-        T * m_free_list;
-        // LRU list
-        T * m_front;
-        T * m_back;
-
-        void remove_node(T * node);
-
-    };
 
     // variables
     LeastRecentlyUsed<ChunkNode, CHUNK_MAP_SIZE> m_chunk_LRU;
