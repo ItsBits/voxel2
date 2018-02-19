@@ -7,7 +7,9 @@
 #include "mesher.hpp"
 #include "Print.hpp"
 
-VoxelContainer::VoxelContainer() {
+VoxelContainer::VoxelContainer() :
+    m_barrier{ cfg::WORKER_THREAD_COUNT }
+{
     std::fill(std::begin(m_chunk_positions), std::end(m_chunk_positions), glm::tvec3<cfg::Coord>{ 0, 0, 0 });
     std::fill(std::begin(m_mesh_positions), std::end(m_mesh_positions), glm::tvec3<cfg::Coord>{ 0, 0, 0 });
     m_chunk_positions[0].x = 1;
@@ -15,7 +17,9 @@ VoxelContainer::VoxelContainer() {
     std::fill(std::begin(m_blocks), std::end(m_blocks), cfg::Block{ 0 });
     m_workers_running.store(true);
     m_iterator.store(0);
-    m_center_chunk = { 0, 0, 0 };
+    m_loader_center_chunk = { 0, 0, 0 };
+    m_actual_center_chunk = { 0, 0, 0 };
+    m_center_dirty.store(false);
     clearMeshReadines();
     std::for_each(std::begin(m_workers), std::end(m_workers), [this](std::thread & worker){
         worker = std::thread{ &VoxelContainer::worker, this };
@@ -24,21 +28,55 @@ VoxelContainer::VoxelContainer() {
 
 VoxelContainer::~VoxelContainer() {
     m_workers_running.store(false);
+    // speed up shutdown of workers
+    m_center_dirty.store(true);
     std::for_each(std::begin(m_workers), std::end(m_workers), [this](std::thread & worker){
         worker.join();
     });
 }
 
+void VoxelContainer::moveCenterChunk(const glm::tvec3<cfg::Coord> & new_center_chunk) {
+    if (!glm::all(glm::equal(m_actual_center_chunk, new_center_chunk))) {
+        {
+            std::lock_guard<std::mutex> lock{ m_actual_center_lock };
+            m_actual_center_chunk = new_center_chunk;
+        }
+        m_center_dirty.store(true);
+    }
+}
+
 void VoxelContainer::worker() {
-    while (m_workers_running) {
-        // TODO: if ended or reseting => main worker thread reset state after all hit barrier
+    while (true) {
+        const auto t = m_voxel_indices.size();
+        const auto center_dirty = m_center_dirty.exchange(false);
+        if (center_dirty) {
+            // move iterator to end
+            const auto iterator_index_swap = m_iterator.exchange(m_voxel_indices.size());
+            if (iterator_index_swap > m_voxel_indices.size())
+            m_iterator.fetch_add(iterator_index_swap - m_voxel_indices.size());
+        }
 
-        const auto iter = m_iterator.fetch_add(1);
-        // TODO: sleep instead of return
-        if (iter >= m_voxel_indices.size())
-            return;
+        const auto iterator_index = m_iterator.fetch_add(1);
+        if (iterator_index >= m_voxel_indices.size()) {
+            if (iterator_index == m_voxel_indices.size() + cfg::WORKER_THREAD_COUNT - 1) {
+                // you are last
+                this->clearMeshReadines();
+                m_iterator.store(0);
+                {
+                    std::lock_guard<std::mutex> lock{ m_actual_center_lock };
+                    m_loader_center_chunk = m_actual_center_chunk;
+                }
+                // TODO: do something better
+                std::this_thread::sleep_for(std::chrono::milliseconds{ 100 });
+            }
+            m_barrier.wait();
+            if (m_workers_running)
+                continue;
+            else
+                break;
+        }
 
-        const auto chunk_position = m_voxel_indices[iter] + m_center_chunk;
+        const auto chunk_position = m_voxel_indices[iterator_index] + m_loader_center_chunk;
         const auto chunk_index = Math::position_to_index(chunk_position, cfg::CHUNK_ARRAY_SIZE);
         if (!glm::all(glm::equal(chunk_position, m_chunk_positions[chunk_index]))) {
             m_chunk_positions[chunk_index] = chunk_position;
@@ -81,6 +119,7 @@ void VoxelContainer::generateMesh(const glm::tvec3<cfg::Coord> & mesh_position, 
                     for (size_t l = 0; l < m_chunk_positions.size(); ++l)
                         Print("->", glm::to_string(m_chunk_positions[l]), ' ', l);
                     int dummy = 42;
+                    throw 0;
                 }
             }
     // generate mesh
@@ -103,7 +142,10 @@ std::size_t VoxelContainer::markMeshes(const glm::tvec3<cfg::Coord> & chunk_posi
                 const auto index = Math::position_to_index(i, cfg::MESH_ARRAY_SIZE);
                 const MeshReadinesType state = m_mesh_readines[index].fetch_or(mask) | mask;
                 mask <<= 1;
-                if (state == ALL_CHUNKS_READY)
+                if (
+                    state == ALL_CHUNKS_READY &&
+                    !glm::all(glm::equal(i, m_mesh_positions[index]))
+                    )
                     meshes_to_load[meshes_to_load_count++] = i;
             }
     return meshes_to_load_count;

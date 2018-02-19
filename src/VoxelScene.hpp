@@ -39,6 +39,7 @@ public:
         while (queue.pop(std::move(m))) {
             ChunkMesh chunk_mesh;
             const size_t vetrex_count = m.mesh.size();
+            if (vetrex_count == 0) continue;
             // size should always be divisible by 2
             chunk_mesh.element_count = vetrex_count + (vetrex_count / 2);
 

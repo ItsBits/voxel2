@@ -110,7 +110,9 @@ int main() {
         if (q_button.state()) window.toggleMouse();
 
         scene_shader.use();
+        // TODO: more precise calculation (correct rounding)
         glm::ivec3 center = player.getPosition() / glm::vec3{ scene.get_chunk_sizes() };
+        vc->moveCenterChunk(center);
         scene.update(center, q);
 //        Print(glm::to_string(player.getPosition()));
         const auto VP_matrix = camera.getViewProjectionMatrix();

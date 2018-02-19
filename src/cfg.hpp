@@ -13,13 +13,13 @@ namespace cfg {
 
     // TODO: static asserts to check for sane and valid values
     static constexpr glm::tvec3<Coord> CHUNK_SIZE{ 16, 16, 16 };
-    static constexpr glm::tvec3<Coord> CHUNK_ARRAY_SIZE{ 16, 16, 16 };
+    static constexpr glm::tvec3<Coord> CHUNK_ARRAY_SIZE{ 32, 16, 32 };
     static constexpr glm::tvec3<Coord> MESH_SIZE{ 16, 16, 16 };
-    static constexpr glm::tvec3<Coord> MESH_ARRAY_SIZE{ 16, 16, 16 };
+    static constexpr glm::tvec3<Coord> MESH_ARRAY_SIZE{ 32, 16, 32 };
     static constexpr glm::tvec3<Coord> REGION_SIZE{ 32, 32, 32 };
 
-    static constexpr glm::tvec3<Coord> MESH_OFFSET{ 8, 8, 8 };
-    static constexpr glm::tvec3<Coord> MESH_LOADING_RADIUS{ 6, 6, 6 };
+    static constexpr glm::tvec3<Coord> MESH_OFFSET{ 8, 8, 8 }; // TODO: MESH_SIZE / 2
+    static constexpr glm::tvec3<Coord> MESH_LOADING_RADIUS{ 14, 6, 14 };
     
     static constexpr Coord CHUNK_VOLUME{ Math::volume(CHUNK_SIZE) };
     static constexpr Coord CHUNK_ARRAY_VOLUME{ Math::volume(CHUNK_ARRAY_SIZE) };

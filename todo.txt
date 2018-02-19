@@ -1,0 +1,8 @@
+* frustum culling
+* remove out of range meshes
+* load from file, store to file (pread, pwrite without lock because write only appends, lock only on defragment)
+* make chunk 1D array, no need for CHUNK_SIZE.xyz
+* ray casting and world access
+* world editing
+* loading from network
+* cool world generator
