@@ -1,4 +1,3 @@
-* frustum culling
 * remove out of range meshes
 * load from file, store to file (pread, pwrite without lock because write only appends, lock only on defragment)
 * make chunk 1D array, no need for CHUNK_SIZE.xyz
@@ -7,3 +6,4 @@
 * loading from network
 * cool world generator
 * limit mesh queue size and memory usage
+* keep chunk offset close to origin because of floating point precision

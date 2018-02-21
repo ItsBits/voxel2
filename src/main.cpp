@@ -92,8 +92,9 @@ int main() {
         vc->moveCenterChunk(center);
         scene.update(center, q);
         const auto VP_matrix = camera.getViewProjectionMatrix();
+        const auto frustum_planes = Math::matrixToNormalizedFrustumPlanes(VP_matrix);
         glUniformMatrix4fv(VP_uniform, 1, GL_FALSE, glm::value_ptr(VP_matrix));
-        scene.draw(offset_uniform);
+        scene.draw(offset_uniform, frustum_planes);
         window.swapResizeClearBuffer();
     }
 

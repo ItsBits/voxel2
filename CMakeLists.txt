@@ -44,7 +44,7 @@ set(SOURCE_FILES
     src/VoxelIteratorr.hpp
     src/WorkerThread.hpp
     src/cfg.hpp
-)
+        src/worldgen.hpp src/worldgen.cpp)
 
 add_executable(voxel ${SOURCE_FILES})
 

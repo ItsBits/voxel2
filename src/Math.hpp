@@ -1,6 +1,7 @@
 #pragma once
 
 #include <glm/glm.hpp>
+#include <array>
 
 namespace Math {
     // introduced DumbVec3 because struct { int32_t x, y, z; }; does not work with std::aromic (at least in gcc)
@@ -157,5 +158,36 @@ namespace Math {
             static_cast<std::uint8_t>(side_a) +
             static_cast<std::uint8_t>(side_b) +
             static_cast<std::uint8_t>(corner);
+    }
+
+    template <typename T>
+    glm::tvec4<T> normalizePlane(const glm::tvec4<T> & plane) {
+        return plane / glm::length(glm::tvec3<T>{ plane });
+    }
+
+    template <typename T>
+    std::array<glm::tvec4<T>, 6> matrixToNormalizedFrustumPlanes(glm::tmat4x4<T> MVP) {
+        MVP = glm::transpose(MVP);
+        return {
+            normalizePlane(MVP[3] + MVP[0]),
+            normalizePlane(MVP[3] - MVP[0]),
+            normalizePlane(MVP[3] - MVP[1]),
+            normalizePlane(MVP[3] + MVP[1]),
+            normalizePlane(MVP[3] + MVP[2]),
+            normalizePlane(MVP[3] - MVP[2])
+        };
+    }
+
+    template <typename T>
+    T planePointDistance(const glm::tvec4<T> & plane, const glm::tvec3<T> & point) {
+        return glm::dot(plane, glm::tvec4<T>{ point, T{ 1 } });
+    }
+
+    template <typename T>
+    bool sphereInFrustum(const std::array<glm::tvec4<T>, 6> & planes, const glm::tvec3<T> & center, const T & radius) {
+        for (const auto & plane : planes)
+            if (planePointDistance(plane, center) < -radius)
+                return false;
+        return true;
     }
 }

@@ -64,16 +64,22 @@ public:
         }
     }
 
-    void draw(GLint offset_uniform) {
+    void draw(GLint offset_uniform, const std::array<glm::vec4, 6> & planes) {
+        static const float MESH_RADIUS{ glm::length(glm::vec3{ cfg::MESH_SIZE } / 2.0f) };
         auto s = m_meshes.size();
         for (const auto & m : m_meshes) {
-            if (m.second.element_count > 0) {
-                const auto offset = m.first * cfg::MESH_SIZE + cfg::MESH_OFFSET;
-                glUniform3f(offset_uniform, offset.x, offset.y, offset.z);
-                glBindVertexArray(m.second.VAO);
-                glDrawElements(GL_TRIANGLES, m.second.element_count, m_quad_ebo.type(), 0);
-                glBindVertexArray(0);
-            }
+            if (m.second.element_count <= 0)
+                continue;
+            const auto offset = m.first * cfg::MESH_SIZE + cfg::MESH_OFFSET;
+            const glm::vec3 center = glm::vec3{ offset } + glm::vec3{ cfg::MESH_SIZE } / 2.0f;
+
+            if (!Math::sphereInFrustum(planes, center, MESH_RADIUS))
+                continue;
+            glUniform3f(offset_uniform, offset.x, offset.y, offset.z);
+            glBindVertexArray(m.second.VAO);
+            glDrawElements(GL_TRIANGLES, m.second.element_count, m_quad_ebo.type(), 0);
+            glBindVertexArray(0);
+            
         }
     }
 
