@@ -31,6 +31,19 @@ set(SOURCE_FILES
     src/mesher.cpp
     src/Region.hpp
     src/Region.cpp
+    src/Math.hpp
+    src/Algebra.hpp
+    src/Array3D.hpp
+    src/Camera.hpp
+    src/LockedQueue.hpp
+    src/Mesh.hpp
+    src/Monostable.hpp
+    src/Print.hpp
+    src/Task.hpp
+    src/ThreadBarrier.hpp
+    src/VoxelIteratorr.hpp
+    src/WorkerThread.hpp
+    src/cfg.hpp
 )
 
 add_executable(voxel ${SOURCE_FILES})

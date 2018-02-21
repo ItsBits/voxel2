@@ -10,9 +10,11 @@
 VoxelContainer::VoxelContainer() :
     m_barrier{ cfg::WORKER_THREAD_COUNT }
 {
-    std::fill(std::begin(m_chunk_positions), std::end(m_chunk_positions), glm::tvec3<cfg::Coord>{ 0, 0, 0 });
+    std::for_each(std::begin(m_chunk_positions), std::end(m_chunk_positions), [this](std::atomic<Math::DumbVec3> & vector){
+        vector.store(Math::toDumb3(glm::tvec3<cfg::Coord>{ 0, 0, 0 }));
+    });
+    m_chunk_positions[0].store(Math::toDumb3(glm::tvec3<cfg::Coord>{ 1, 0, 0 }));
     std::fill(std::begin(m_mesh_positions), std::end(m_mesh_positions), glm::tvec3<cfg::Coord>{ 0, 0, 0 });
-    m_chunk_positions[0].x = 1;
     m_mesh_positions[0].x = 1;
     std::fill(std::begin(m_blocks), std::end(m_blocks), cfg::Block{ 0 });
     m_workers_running.store(true);
@@ -36,34 +38,50 @@ VoxelContainer::~VoxelContainer() {
 }
 
 void VoxelContainer::moveCenterChunk(const glm::tvec3<cfg::Coord> & new_center_chunk) {
-    if (!glm::all(glm::equal(m_actual_center_chunk, new_center_chunk))) {
-        {
-            std::lock_guard<std::mutex> lock{ m_actual_center_lock };
-            m_actual_center_chunk = new_center_chunk;
-        }
+    const auto changed = !glm::all(glm::equal(m_actual_center_chunk, new_center_chunk));
+    std::lock_guard<std::mutex> lock{ m_center_lock };
+    m_actual_center_chunk = new_center_chunk;
+    m_center_chunk_overlap = Math::overlap(
+        Math::toAABB3(m_actual_center_chunk, cfg::CHUNK_LOADING_RADIUS),
+        Math::toAABB3(m_loader_center_chunk, cfg::CHUNK_LOADING_RADIUS)
+    );
+    if (changed)
         m_center_dirty.store(true);
-    }
+}
+
+const cfg::Block * VoxelContainer::getChunk(const glm::tvec3<cfg::Coord> & chunk_position) {
+    // oh boy
+    const auto chunk_index = Math::position_to_index(chunk_position, cfg::CHUNK_ARRAY_SIZE);
+    // TODO: make vector atomic
+    const auto loaded_chunk_position = Math::toVec3<cfg::Coord>(m_chunk_positions[chunk_index].load());
+    if (!glm::all(glm::equal(loaded_chunk_position, chunk_position)))
+        return nullptr;
+
+    if (!Math::inside(m_center_chunk_overlap, chunk_position))
+        return nullptr;
+
+    return m_blocks.data() + chunk_index * cfg::CHUNK_VOLUME;
 }
 
 void VoxelContainer::worker() {
+    const auto indices_size = m_voxel_indices.size();
     while (true) {
-        const auto t = m_voxel_indices.size();
         const auto center_dirty = m_center_dirty.exchange(false);
         if (center_dirty) {
             // move iterator to end
-            const auto iterator_index_swap = m_iterator.exchange(m_voxel_indices.size());
-            if (iterator_index_swap > m_voxel_indices.size())
-            m_iterator.fetch_add(iterator_index_swap - m_voxel_indices.size());
+            const auto iterator_index_swap = m_iterator.exchange(indices_size);
+            if (iterator_index_swap > indices_size)
+            m_iterator.fetch_add(iterator_index_swap - indices_size);
         }
 
         const auto iterator_index = m_iterator.fetch_add(1);
-        if (iterator_index >= m_voxel_indices.size()) {
-            if (iterator_index == m_voxel_indices.size() + cfg::WORKER_THREAD_COUNT - 1) {
+        if (iterator_index >= indices_size) {
+            if (iterator_index == indices_size + cfg::WORKER_THREAD_COUNT - 1) {
                 // you are last
-                this->clearMeshReadines();
+                clearMeshReadines();
                 m_iterator.store(0);
                 {
-                    std::lock_guard<std::mutex> lock{ m_actual_center_lock };
+                    std::lock_guard<std::mutex> lock{ m_center_lock };
                     m_loader_center_chunk = m_actual_center_chunk;
                 }
                 // TODO: do something better
@@ -78,8 +96,8 @@ void VoxelContainer::worker() {
 
         const auto chunk_position = m_voxel_indices[iterator_index] + m_loader_center_chunk;
         const auto chunk_index = Math::position_to_index(chunk_position, cfg::CHUNK_ARRAY_SIZE);
-        if (!glm::all(glm::equal(chunk_position, m_chunk_positions[chunk_index]))) {
-            m_chunk_positions[chunk_index] = chunk_position;
+        if (!glm::all(glm::equal(chunk_position, Math::toVec3<cfg::Coord>(m_chunk_positions[chunk_index].load())))) {
+            m_chunk_positions[chunk_index].store(Math::toDumb3(chunk_position));
             generateChunk(m_blocks.data() + chunk_index * cfg::CHUNK_VOLUME, chunk_position);
         }
 
@@ -114,10 +132,10 @@ void VoxelContainer::generateMesh(const glm::tvec3<cfg::Coord> & mesh_position, 
                 const auto index = Math::position_to_index(i, cfg::CHUNK_ARRAY_SIZE);
                 chunks[j++] = m_blocks.data() + cfg::CHUNK_VOLUME * index;
                 const auto correct = i;
-                const auto actual = m_chunk_positions[index];
+                const auto actual = Math::toVec3<cfg::Coord>(m_chunk_positions[index].load());
                 if (!glm::all(glm::equal(correct, actual))) {
                     for (size_t l = 0; l < m_chunk_positions.size(); ++l)
-                        Print("->", glm::to_string(m_chunk_positions[l]), ' ', l);
+                        Print("->", glm::to_string(Math::toVec3<cfg::Coord>(m_chunk_positions[l].load())), ' ', l);
                     int dummy = 42;
                     throw 0;
                 }

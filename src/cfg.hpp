@@ -20,6 +20,25 @@ namespace cfg {
 
     static constexpr glm::tvec3<Coord> MESH_OFFSET{ 8, 8, 8 }; // TODO: MESH_SIZE / 2
     static constexpr glm::tvec3<Coord> MESH_LOADING_RADIUS{ 14, 6, 14 };
+
+    // TODO: better calculation method
+    static_assert( // for CHUNK_LOADING_RADIUS
+        MESH_OFFSET.x > 0 &&
+        MESH_OFFSET.y > 0 &&
+        MESH_OFFSET.z > 0
+    );
+    static_assert( // for CHUNK_LOADING_RADIUS
+        MESH_OFFSET.x < MESH_SIZE.x &&
+        MESH_OFFSET.y < MESH_SIZE.y &&
+        MESH_OFFSET.z < MESH_SIZE.z
+    );
+    static_assert( // for CHUNK_LOADING_RADIUS
+        CHUNK_SIZE.x == MESH_SIZE.x &&
+        CHUNK_SIZE.y == MESH_SIZE.y &&
+        CHUNK_SIZE.z == MESH_SIZE.z
+    );
+    // it's actually a little more
+    static constexpr glm::tvec3<Coord> CHUNK_LOADING_RADIUS{ MESH_LOADING_RADIUS };
     
     static constexpr Coord CHUNK_VOLUME{ Math::volume(CHUNK_SIZE) };
     static constexpr Coord CHUNK_ARRAY_VOLUME{ Math::volume(CHUNK_ARRAY_SIZE) };

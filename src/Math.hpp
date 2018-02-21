@@ -1,6 +1,84 @@
 #pragma once
 
+#include <glm/glm.hpp>
+
 namespace Math {
+    // introduced DumbVec3 because struct { int32_t x, y, z; }; does not work with std::aromic (at least in gcc)
+    // and sizeof(T) > 64bit might need mutex anyway
+    // this limits the world to 2^21*CHUNK_SIZE.x world width (and so on for other dimensions)
+    using DumbVec3 = uint64_t;
+    template<typename T>
+    glm::tvec3<T> toVec3(DumbVec3 d) {
+        static_assert(std::is_integral<T>::value && std::is_signed<T>::value);
+        static_assert(sizeof(T) * CHAR_BIT >= 21);
+        static_assert(-1 == ~0);
+        glm::tvec3<T> v;
+        v.x = (d >> DumbVec3(0 * 21)) & (1 << 21) - 1;
+        v.y = (d >> DumbVec3(1 * 21)) & (1 << 21) - 1;
+        v.z = (d >> DumbVec3(2 * 21)) & (1 << 21) - 1;
+        v.x <<= sizeof(T) * CHAR_BIT - 21;
+        v.y <<= sizeof(T) * CHAR_BIT - 21;
+        v.z <<= sizeof(T) * CHAR_BIT - 21;
+        v.x >>= sizeof(T) * CHAR_BIT - 21;
+        v.y >>= sizeof(T) * CHAR_BIT - 21;
+        v.z >>= sizeof(T) * CHAR_BIT - 21;
+        return v;
+    }
+    template<typename T>
+    DumbVec3 toDumb3(glm::tvec3<T> v) {
+        static_assert(std::is_integral<T>::value && std::is_signed<T>::value);
+        static_assert(sizeof(T) * CHAR_BIT >= 21);
+        static_assert(-1 == ~0);
+        v.x &= (1 << 21) - 1;
+        v.y &= (1 << 21) - 1;
+        v.z &= (1 << 21) - 1;
+        return
+            DumbVec3(v.x) << DumbVec3(0 * 21) |
+            DumbVec3(v.y) << DumbVec3(1 * 21) |
+            DumbVec3(v.z) << DumbVec3(2 * 21);
+    }
+
+    template <typename T>
+    struct AABB3 {
+        glm::tvec3<T> min, max;
+    };
+
+    // word union is reserved :(
+    template <typename T>
+    constexpr AABB3<T> overlap(const AABB3<T> & a, const AABB3<T> & b) {
+        AABB3<T> aabb{
+            glm::max(a.min, b.min),
+            glm::min(a.max, b.max)
+        };
+
+        if (glm::any(glm::lessThanEqual(aabb.max - aabb.min, glm::tvec3<T>{ 0, 0, 0 }))) {
+            aabb.min = { 0, 0, 0 };
+            aabb.max = { 0, 0, 0 };
+        }
+
+        return aabb;
+    }
+
+    template <typename T>
+    constexpr AABB3<T> toAABB3(const glm::tvec3<T> & center, const glm::tvec3<T> & radius) {
+        return {
+            center - radius,
+            center + radius
+        };
+    }
+
+    template <typename T>
+    constexpr bool inside(const AABB3<T> & a, const glm::tvec3<T> & b) {
+        const auto c = glm::greaterThanEqual(a.max, b);
+        const auto d = glm::lessThanEqual(a.min, b);
+        return glm::all(c) && glm::all(d);
+    }
+
+    template <typename T>
+    constexpr bool inRange(const glm::tvec3<T> & center, const glm::tvec3<T> & radius, const glm::tvec3<T> & point) {
+        return glm::all(glm::lessThanEqual(glm::abs(point - center), radius));
+    }
+
     template <typename T>
     constexpr T dot(const glm::tvec3<T> & a, const glm::tvec3<T> & b) {
         return a.x * b.x + a.y * b.y + a.z * b.z;
