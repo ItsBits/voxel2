@@ -12,17 +12,10 @@ set(SOURCE_FILES
     src/Player.hpp
     src/Shader.hpp
     src/Shader.cpp
-    src/VoxelMap.hpp
-    src/VoxelMap.cpp
     src/Window.hpp
     src/VoxelScene.hpp
     src/VoxelScene.cpp
-    src/MeshIterator.hpp
     src/QuadEBO.hpp
-    src/LRUH.hpp
-    src/SparseMap.hpp
-    src/VoxelArray.hpp
-    src/VoxelArray.cpp
     src/VoxelContainer.hpp
     src/VoxelContainer.cpp
     src/VoxelIterator.hpp
@@ -32,19 +25,16 @@ set(SOURCE_FILES
     src/Region.hpp
     src/Region.cpp
     src/Math.hpp
-    src/Algebra.hpp
-    src/Array3D.hpp
     src/Camera.hpp
     src/LockedQueue.hpp
     src/Mesh.hpp
     src/Monostable.hpp
     src/Print.hpp
-    src/Task.hpp
     src/ThreadBarrier.hpp
-    src/VoxelIteratorr.hpp
-    src/WorkerThread.hpp
     src/cfg.hpp
-        src/worldgen.hpp src/worldgen.cpp)
+    src/worldgen.hpp
+    src/worldgen.cpp
+)
 
 add_executable(voxel ${SOURCE_FILES})
 

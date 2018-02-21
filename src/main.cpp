@@ -7,7 +7,6 @@
 
 #include "Window.hpp"
 #include "Input.hpp"
-#include "VoxelMap.hpp"
 #include "Camera.hpp"
 #include "Player.hpp"
 #include <glm/gtx/string_cast.hpp>
@@ -15,7 +14,6 @@
 #include "VoxelScene.hpp"
 #include "Shader.hpp"
 #include "Monostable.hpp"
-#include "VoxelArray.hpp"
 #include "VoxelContainer.hpp"
 #include "LockedQueue.hpp"
 
@@ -51,8 +49,7 @@ int main() {
     glEnable(GL_CULL_FACE);
 
     Monostable q_button;
-    VoxelMap voxel_storage{};
-    Camera<float> camera{};
+    Camera<float> camera;
     Player<float> player;
     Input input{ window.getWindowPtr() };
     VoxelScene scene{};

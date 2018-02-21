@@ -1,290 +1,63 @@
 #include "VoxelScene.hpp"
-#include <vector>
 
-//==============================================================================
-static inline std::uint8_t vertexAO(const bool side_a, const bool side_b, const bool corner)
-{
-#if 0
-    // is this branch free version correct?
-    corner = corner || side_a && side_b;
-    return (uint8_t)corner + (uint8_t)side_a + (uint8_t)size_b;
-#endif
+void VoxelScene::update(const glm::ivec3 & center, LockedQueue<Mesh> & queue) {
+    /*
+    for(auto m = m_meshes.begin(); m != m_meshes.end();) {
+        const glm::ivec3 distance = glm::abs(center - m->first);
+        const int r = m_mesh_iterator.getRadius();
+        if (distance.x > r || distance.y > r || distance.z > r) {
+            glDeleteBuffers(1, &m->second.VBO);
+            glDeleteVertexArrays(1, &m->second.VAO);
+            m = m_meshes.erase(m);
+        } else {
+            ++m;
+        }
+    }*/
 
-    if (side_a && side_b) return 3;
+    Mesh m;
+    while (queue.pop(std::move(m))) {
+        ChunkMesh chunk_mesh;
+        const size_t vetrex_count = m.mesh.size();
+        if (vetrex_count == 0) continue;
+        // size should always be divisible by 2
+        chunk_mesh.element_count = vetrex_count + (vetrex_count / 2);
 
-    return
-        static_cast<std::uint8_t>(side_a) +
-        static_cast<std::uint8_t>(side_b) +
-        static_cast<std::uint8_t>(corner);
+        glGenVertexArrays(1, &chunk_mesh.VAO);
+        glGenBuffers(1, &chunk_mesh.VBO);
+        glBindVertexArray(chunk_mesh.VAO);
+        glBindBuffer(GL_ARRAY_BUFFER, chunk_mesh.VBO);
+        m_quad_ebo.bind();
+        m_quad_ebo.resize(chunk_mesh.element_count);
+        glVertexAttribIPointer(0, 3, GL_UNSIGNED_BYTE, sizeof(cfg::Vertex), (GLvoid *)(0));
+        glVertexAttribIPointer(1, 1, GL_UNSIGNED_BYTE, sizeof(cfg::Vertex), (GLvoid *)(3));
+        glVertexAttribIPointer(2, 4, GL_UNSIGNED_BYTE, sizeof(cfg::Vertex), (GLvoid *)(4));
+        glEnableVertexAttribArray(0);
+        glEnableVertexAttribArray(1);
+        glEnableVertexAttribArray(2);
+        glBindVertexArray(0);
+
+        glBindBuffer(GL_ARRAY_BUFFER, chunk_mesh.VBO);
+        glBufferData(GL_ARRAY_BUFFER, m.mesh.size() * sizeof(m.mesh[0]), m.mesh.data(), GL_STATIC_DRAW);
+
+        m_meshes.insert({ m.position, chunk_mesh });
+    }
 }
 
-//==============================================================================
-std::vector<uint8_t> VoxelScene::generateChunkMesh(VoxelMap & vs, const glm::ivec3 & chunk_position) {
-    const glm::ivec3 from_block{ chunk_position * CHUNK_SIZES };
-    const glm::ivec3 to_block{ from_block + CHUNK_SIZES };
-    const uint8_t * blockss[27];
-    size_t k = 0;
-    for (int z = chunk_position.z - 1; z <= chunk_position.z + 1; ++z)
-        for (int y = chunk_position.y - 1; y <= chunk_position.y + 1; ++y)
-            for (int x = chunk_position.x - 1; x <= chunk_position.x + 1; ++x) {
-                VoxelMap::ChunkPtr p = vs.get(x, y, z, true, false);
-                if (p.n) {
-//                    std::cout << "new" << std::endl;
-                    create_new_chunk(p.b, { x, y, z });
-                }
-                blockss[k++] = p.b;
-            }
-//    const uint8_t * blockss = vs.get({ chunk_position.x, chunk_position.y, chunk_position.z }, true, false);
-    const auto block_get = [this, blockss, chunk_position] (glm::ivec3 p) -> uint8_t {
-        glm::ivec3 pp = p;
-        // floor division
-        // r[i] = (x[i] + (x[i] < 0)) / y[i] - (x[i] < 0)
-        pp.x = (pp.x + (pp.x < 0)) / CHUNK_SIZES.x - (pp.x < 0);
-        pp.y = (pp.y + (pp.y < 0)) / CHUNK_SIZES.y - (pp.y < 0);
-        pp.z = (pp.z + (pp.z < 0)) / CHUNK_SIZES.z - (pp.z < 0);
-        // TODO: handle out of ranges (aka. decouble mesh from chunk)
-//        if (pp.x != chunk_position.x || pp.y != chunk_position.y || pp.z != chunk_position.z)
-//            return 0;
-        pp -= chunk_position - 1;
-        assert(pp.x >= 0 && pp.y >= 0 && pp.z >= 0 && pp.x < 3 && pp.y < 3 && pp.z < 3);
+void VoxelScene::draw(GLint offset_uniform, const std::array<glm::vec4, 6> & planes) {
+    static const float MESH_RADIUS{ glm::length(glm::vec3{ cfg::MESH_SIZE } / 2.0f) };
+    auto s = m_meshes.size();
+    for (const auto & m : m_meshes) {
+        if (m.second.element_count <= 0)
+            continue;
+        const auto offset = m.first * cfg::MESH_SIZE + cfg::MESH_OFFSET;
+        const glm::vec3 center = glm::vec3{ offset } + glm::vec3{ cfg::MESH_SIZE } / 2.0f;
 
-
-        // floor modulus
-        // r[i] = (x[i] % y[i] + y[i]) % y[i]
-        p.x = (p.x % CHUNK_SIZES.x + CHUNK_SIZES.x) % CHUNK_SIZES.x;
-        p.y = (p.y % CHUNK_SIZES.y + CHUNK_SIZES.y) % CHUNK_SIZES.y;
-        p.z = (p.z % CHUNK_SIZES.z + CHUNK_SIZES.z) % CHUNK_SIZES.z;
-        // TODO: don't hardcode lookup array dimensions (but calculate from mesh dimensions)
-        return blockss[pp.z * 9 + pp.y * 3 + pp.x][p.z * CHUNK_SIZES.y * CHUNK_SIZES.x + p.y * CHUNK_SIZES.x + p.x];
-    };
-
-    struct Vertex {
-        uint8_t x, y, z, c, a0, a1, a2, a3;
-    };
-
-    constexpr std::uint8_t SHADOW_STRENGTH{ 60 };
-
-    std::vector<Vertex> mesh;
-    mesh.reserve(1024*1024); // whatever
-
-    glm::ivec3 i;
-
-    const glm::ivec3 offset{ from_block };
-    for (i[2] = from_block[2]; i[2] < to_block[2]; ++i[2])
-        for (i[1] = from_block[1]; i[1] < to_block[1]; ++i[1])
-            for (i[0] = from_block[0]; i[0] < to_block[0]; ++i[0])
-            {
-                auto block = block_get(i); // TODO: this can in future probably be set to reference
-                if (block == 0) continue;
-
-                block = std::rand() % 254 + 1;
-
-                // X + 1
-                if (block_get({ i[0] + 1, i[1], i[2] }) == 0)
-                {
-                    const bool aos[8]{
-                        block_get({ i[0] + 1, i[1] - 1, i[2]     }) != 0,
-                        block_get({ i[0] + 1, i[1]    , i[2] - 1 }) != 0,
-                        block_get({ i[0] + 1, i[1] + 1, i[2]     }) != 0,
-                        block_get({ i[0] + 1, i[1]    , i[2] + 1 }) != 0,
-
-                        block_get({ i[0] + 1, i[1] - 1, i[2] - 1 }) != 0,
-                        block_get({ i[0] + 1, i[1] - 1, i[2] + 1 }) != 0,
-                        block_get({ i[0] + 1, i[1] + 1, i[2] + 1 }) != 0,
-                        block_get({ i[0] + 1, i[1] + 1, i[2] - 1 }) != 0
-                    };
-
-                    const glm::tvec4<uint8_t> ao = std::numeric_limits<std::uint8_t>::max() - glm::tvec4<uint8_t>{
-                        vertexAO(aos[0], aos[3], aos[5]),
-                        vertexAO(aos[2], aos[3], aos[6]),
-                        vertexAO(aos[0], aos[1], aos[4]),
-                        vertexAO(aos[2], aos[1], aos[7])
-                    } * SHADOW_STRENGTH;
-
-                    const auto quad_pos_int = i - offset;
-                    const auto quad_pos = glm::tvec3<uint8_t>{ quad_pos_int.x, quad_pos_int.y, quad_pos_int.z };
-                    const auto quad_po1 = quad_pos + uint8_t(1);
-
-                    mesh.push_back(Vertex{ quad_po1[0], quad_pos[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_po1[0], quad_pos[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_po1[0], quad_po1[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_po1[0], quad_po1[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
-                }
-
-                // X - 1
-                if (block_get({ i[0] - 1, i[1], i[2] }) == 0)
-                {
-                    const bool aos[8]{
-                        block_get({ i[0] - 1, i[1] - 1, i[2]     }) != 0,
-                        block_get({ i[0] - 1, i[1]    , i[2] - 1 }) != 0,
-                        block_get({ i[0] - 1, i[1] + 1, i[2]     }) != 0,
-                        block_get({ i[0] - 1, i[1]    , i[2] + 1 }) != 0,
-
-                        block_get({ i[0] - 1, i[1] - 1, i[2] - 1 }) != 0,
-                        block_get({ i[0] - 1, i[1] - 1, i[2] + 1 }) != 0,
-                        block_get({ i[0] - 1, i[1] + 1, i[2] + 1 }) != 0,
-                        block_get({ i[0] - 1, i[1] + 1, i[2] - 1 }) != 0
-                    };
-
-                    const glm::tvec4<uint8_t> ao = std::numeric_limits<std::uint8_t>::max() - glm::tvec4<uint8_t>{
-                        vertexAO(aos[0], aos[1], aos[4]),
-                        vertexAO(aos[2], aos[1], aos[7]),
-                        vertexAO(aos[0], aos[3], aos[5]),
-                        vertexAO(aos[2], aos[3], aos[6])
-                    } * SHADOW_STRENGTH;
-
-                    const auto quad_pos_int = i - offset;
-                    const auto quad_pos = glm::tvec3<uint8_t>{ quad_pos_int.x, quad_pos_int.y, quad_pos_int.z };
-                    const auto quad_po1 = quad_pos + uint8_t(1);
-
-                    mesh.push_back(Vertex{ quad_pos[0], quad_pos[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0], quad_pos[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0], quad_po1[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0], quad_po1[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
-                }
-
-                // Y + 1
-                if (block_get({ i[0], i[1] + 1, i[2] }) == 0)
-                {
-                    const bool aos[8]{
-                        block_get({ i[0] - 1, i[1] + 1, i[2]     }) != 0,
-                        block_get({ i[0]    , i[1] + 1, i[2] - 1 }) != 0,
-                        block_get({ i[0] + 1, i[1] + 1, i[2]     }) != 0,
-                        block_get({ i[0]    , i[1] + 1, i[2] + 1 }) != 0,
-
-                        block_get({ i[0] - 1, i[1] + 1, i[2] - 1 }) != 0,
-                        block_get({ i[0] - 1, i[1] + 1, i[2] + 1 }) != 0,
-                        block_get({ i[0] + 1, i[1] + 1, i[2] + 1 }) != 0,
-                        block_get({ i[0] + 1, i[1] + 1, i[2] - 1 }) != 0
-                    };
-
-                    const glm::tvec4<uint8_t> ao = std::numeric_limits<std::uint8_t>::max() - glm::tvec4<uint8_t>{
-                        vertexAO(aos[2], aos[1], aos[7]),
-                        vertexAO(aos[2], aos[3], aos[6]),
-                        vertexAO(aos[0], aos[1], aos[4]),
-                        vertexAO(aos[0], aos[3], aos[5])
-                    } * SHADOW_STRENGTH;
-
-                    const auto quad_pos_int = i - offset;
-                    const auto quad_pos = glm::tvec3<uint8_t>{ quad_pos_int.x, quad_pos_int.y, quad_pos_int.z };
-                    const auto quad_po1 = quad_pos + uint8_t(1);
-
-                    mesh.push_back(Vertex{ quad_po1[0], quad_po1[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0], quad_po1[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0], quad_po1[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_po1[0], quad_po1[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
-                }
-
-                // Y - 1
-                if (block_get({ i[0], i[1] - 1, i[2] }) == 0)
-                {
-                    const bool aos[8]{
-                        block_get({ i[0] - 1, i[1] - 1, i[2]     }) != 0,
-                        block_get({ i[0]    , i[1] - 1, i[2] - 1 }) != 0,
-                        block_get({ i[0] + 1, i[1] - 1, i[2]     }) != 0,
-                        block_get({ i[0]    , i[1] - 1, i[2] + 1 }) != 0,
-
-                        block_get({ i[0] - 1, i[1] - 1, i[2] - 1 }) != 0,
-                        block_get({ i[0] - 1, i[1] - 1, i[2] + 1 }) != 0,
-                        block_get({ i[0] + 1, i[1] - 1, i[2] + 1 }) != 0,
-                        block_get({ i[0] + 1, i[1] - 1, i[2] - 1 }) != 0
-                    };
-
-                    const glm::tvec4<uint8_t> ao = std::numeric_limits<std::uint8_t>::max() - glm::tvec4<uint8_t>{
-                        vertexAO(aos[0], aos[1], aos[4]),
-                        vertexAO(aos[0], aos[3], aos[5]),
-                        vertexAO(aos[2], aos[1], aos[7]),
-                        vertexAO(aos[2], aos[3], aos[6])
-                    } * SHADOW_STRENGTH;
-
-                    const auto quad_pos_int = i - offset;
-                    const auto quad_pos = glm::tvec3<uint8_t>{ quad_pos_int.x, quad_pos_int.y, quad_pos_int.z };
-                    const auto quad_po1 = quad_pos + uint8_t(1);
-
-                    mesh.push_back(Vertex{ quad_pos[0], quad_pos[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_po1[0], quad_pos[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_po1[0], quad_pos[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0], quad_pos[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
-                }
-
-                // Z + 1
-                if (block_get({ i[0], i[1], i[2] + 1 }) == 0)
-                {
-                    const bool aos[8]{
-                        block_get({ i[0] - 1, i[1]    , i[2] + 1 }) != 0,
-                        block_get({ i[0]    , i[1] - 1, i[2] + 1 }) != 0,
-                        block_get({ i[0] + 1, i[1]    , i[2] + 1 }) != 0,
-                        block_get({ i[0]    , i[1] + 1, i[2] + 1 }) != 0,
-
-                        block_get({ i[0] - 1, i[1] - 1, i[2] + 1 }) != 0,
-                        block_get({ i[0] - 1, i[1] + 1, i[2] + 1 }) != 0,
-                        block_get({ i[0] + 1, i[1] + 1, i[2] + 1 }) != 0,
-                        block_get({ i[0] + 1, i[1] - 1, i[2] + 1 }) != 0
-                    };
-
-                    const glm::tvec4<uint8_t> ao = std::numeric_limits<std::uint8_t>::max() - glm::tvec4<uint8_t>{
-                        vertexAO(aos[0], aos[1], aos[4]),
-                        vertexAO(aos[0], aos[3], aos[5]),
-                        vertexAO(aos[2], aos[1], aos[7]),
-                        vertexAO(aos[2], aos[3], aos[6])
-                    } * SHADOW_STRENGTH;
-
-                    const auto quad_pos_int = i - offset;
-                    const auto quad_pos = glm::tvec3<uint8_t>{ quad_pos_int.x, quad_pos_int.y, quad_pos_int.z };
-                    const auto quad_po1 = quad_pos + uint8_t(1);
-
-                    mesh.push_back(Vertex{ quad_pos[0], quad_pos[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_po1[0], quad_pos[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_po1[0], quad_po1[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0], quad_po1[1], quad_po1[2], block, ao[0], ao[1], ao[2], ao[3] });
-                }
-
-                // Z - 1
-                if (block_get({ i[0], i[1], i[2] - 1 }) == 0)
-                {
-                    const bool aos[8]{
-                        block_get({ i[0] - 1, i[1]    , i[2] - 1 }) != 0,
-                        block_get({ i[0]    , i[1] - 1, i[2] - 1 }) != 0,
-                        block_get({ i[0] + 1, i[1]    , i[2] - 1 }) != 0,
-                        block_get({ i[0]    , i[1] + 1, i[2] - 1 }) != 0,
-
-                        block_get({ i[0] - 1, i[1] - 1, i[2] - 1 }) != 0,
-                        block_get({ i[0] - 1, i[1] + 1, i[2] - 1 }) != 0,
-                        block_get({ i[0] + 1, i[1] + 1, i[2] - 1 }) != 0,
-                        block_get({ i[0] + 1, i[1] - 1, i[2] - 1 }) != 0
-                    };
-
-                    const glm::tvec4<uint8_t> ao = std::numeric_limits<std::uint8_t>::max() - glm::tvec4<uint8_t>{
-                        vertexAO(aos[2], aos[1], aos[7]),
-                        vertexAO(aos[2], aos[3], aos[6]),
-                        vertexAO(aos[0], aos[1], aos[4]),
-                        vertexAO(aos[0], aos[3], aos[5])
-                    } * SHADOW_STRENGTH;
-
-                    const auto quad_pos_int = i - offset;
-                    const auto quad_pos = glm::tvec3<uint8_t>{ quad_pos_int.x, quad_pos_int.y, quad_pos_int.z };
-                    const auto quad_po1 = quad_pos + uint8_t(1);
-
-                    uint8_t tt = uint8_t(quad_pos[1]) + uint8_t(1);
-
-                    mesh.push_back(Vertex{ quad_po1[0], quad_pos[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0], quad_pos[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_pos[0], quad_po1[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
-                    mesh.push_back(Vertex{ quad_po1[0], quad_po1[1], quad_pos[2], block, ao[0], ao[1], ao[2], ao[3] });
-                }
-            }
-
-    std::vector<uint8_t> tmp_mesh;
-    tmp_mesh.reserve(mesh.size() * 8);
-    for (const auto & v : mesh) {
-        tmp_mesh.push_back(v.x);
-        tmp_mesh.push_back(v.y);
-        tmp_mesh.push_back(v.z);
-        tmp_mesh.push_back(v.c);
-        tmp_mesh.push_back(v.a0);
-        tmp_mesh.push_back(v.a1);
-        tmp_mesh.push_back(v.a2);
-        tmp_mesh.push_back(v.a3);
+        if (!Math::sphereInFrustum(planes, center, MESH_RADIUS))
+            continue;
+        glUniform3f(offset_uniform, offset.x, offset.y, offset.z);
+        glBindVertexArray(m.second.VAO);
+        glDrawElements(GL_TRIANGLES, m.second.element_count, m_quad_ebo.type(), 0);
+        glBindVertexArray(0);
+        
     }
-    return std::move(tmp_mesh);
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../gl3w/gl3w.h"
+#include <memory>
 
 class QuadEBO
 {
