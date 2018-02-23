@@ -98,7 +98,7 @@ int main() {
         const glm::ivec3 center{ std::lround(center_d.x), std::lround(center_d.y), std::lround(center_d.z) };
         vc->moveCenterChunk(center);
         // TODO: offset ray same as camera and use float and offset (add offset to result)
-        scene.update(center, q, Ray<double>{ player_position, glm::normalize(player.getFacing()) }, *vc.get());
+        scene.update(center, q, player_position, player.getFacing(), *vc.get());
         const auto VP_matrix = camera.getViewProjectionMatrix();
         const auto frustum_planes = Math::matrixToNormalizedFrustumPlanes(VP_matrix);
         scene.draw_cube(VP_matrix, -camera_offset);

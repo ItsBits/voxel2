@@ -2,29 +2,42 @@
 
 #include "Ray.hpp"
 
-void VoxelScene::update(const glm::ivec3 & center, LockedQueue<Mesh> & queue, Ray<double> ray, VoxelContainer & vc) {
+void VoxelScene::update(const glm::ivec3 & center, LockedQueue<Mesh> & queue, const glm::dvec3 player_position, const glm::dvec3 player_facing, VoxelContainer & vc) {
+
+    glm::dvec3 player_position_d;
+    glm::dvec3 player_offset_d;
+    player_position_d.x = std::modf(player_position.x, &player_offset_d.x);
+    player_position_d.y = std::modf(player_position.y, &player_offset_d.y);
+    player_position_d.z = std::modf(player_position.z, &player_offset_d.z);
+    const glm::vec3 player_position_f{ player_position_d };
+    const glm::ivec3 player_offset_f{ player_offset_d };
+
+
     // cast ray
-    Ray<double>::State ray_state = ray.next();
-    glm::tvec3<cfg::Coord> chunk_position = Math::floor_div(ray_state.block_position, cfg::CHUNK_SIZE);
+
+
+    Ray<float, cfg::Coord> ray{ player_position_f, player_facing };
+    Ray<float, cfg::Coord>::State ray_state = ray.next();
+    glm::tvec3<cfg::Coord> chunk_position = Math::floor_div(ray_state.block_position + player_offset_f, cfg::CHUNK_SIZE);
     const cfg::Block * chunk = vc.getChunk(chunk_position);
     m_block_hit = false;
 
     while (ray_state.distance <= cfg::MAX_RAY_LENGTH && chunk != nullptr) {
-        const auto block_index = Math::position_to_index(ray_state.block_position, cfg::CHUNK_SIZE);
+        const auto block_index = Math::position_to_index(ray_state.block_position + player_offset_f, cfg::CHUNK_SIZE);
         const cfg::Block & block = chunk[block_index];
         if (block != cfg::Block{ 0 }) {
             m_block_hit = true;
             break;
         }
         ray_state = ray.next();
-        const auto new_chunk_position = Math::floor_div(ray_state.block_position, cfg::CHUNK_SIZE);
+        const auto new_chunk_position = Math::floor_div(ray_state.block_position + player_offset_f, cfg::CHUNK_SIZE);
         if (!glm::all(glm::equal(new_chunk_position, chunk_position))) {
             chunk_position = new_chunk_position;
             chunk = vc.getChunk(chunk_position);
         }
     }
 
-    m_selected_block = ray_state.block_position;
+    m_selected_block = ray_state.block_position + player_offset_f;
 
     // TODO: delete out of range meshes
     /*

@@ -11,7 +11,7 @@
 
 class VoxelScene {
 public:
-    void update(const glm::ivec3 & center, LockedQueue<Mesh> & queue, Ray<double> ray, VoxelContainer & vc);
+    void update(const glm::ivec3 & center, LockedQueue<Mesh> & queue, const glm::dvec3 player_position, const glm::dvec3 player_facing, VoxelContainer & vc);
     void draw(GLint offset_uniform, const std::array<glm::vec4, 6> & planes, glm::tvec3<cfg::Coord> offset_offset);
     void draw_cube(const glm::mat4 & VP, const glm::dvec3 & camera_offset);
 
