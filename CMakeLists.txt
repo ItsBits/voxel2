@@ -34,6 +34,9 @@ set(SOURCE_FILES
     src/cfg.hpp
     src/worldgen.hpp
     src/worldgen.cpp
+    src/Ray.hpp
+    src/LineCube.cpp
+    src/LineCube.hpp
 )
 
 add_executable(voxel ${SOURCE_FILES})

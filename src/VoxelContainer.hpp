@@ -3,7 +3,6 @@
 #include <array>
 #include <thread>
 #include <atomic>
-
 #include "cfg.hpp"
 #include "VoxelIterator.hpp"
 #include "LockedQueue.hpp"

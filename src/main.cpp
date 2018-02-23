@@ -16,9 +16,10 @@
 #include "Monostable.hpp"
 #include "VoxelContainer.hpp"
 #include "LockedQueue.hpp"
-
 #include "cfg.hpp"
 #include "Print.hpp"
+#include "Ray.hpp"
+#include "LineCube.hpp"
 
 int main() {
     std::unique_ptr<VoxelContainer> vc = std::make_unique<VoxelContainer>();
@@ -50,9 +51,9 @@ int main() {
 
     Monostable q_button;
     Camera<float> camera;
-    Player<float> player;
+    Player<double> player;
     Input input{ window.getWindowPtr() };
-    VoxelScene scene{};
+    VoxelScene scene;
     Shader scene_shader{
         {
             { "shader/block.vert", GL_VERTEX_SHADER },
@@ -77,21 +78,34 @@ int main() {
         };
         player.update(dt, keys, mouse_pointer_movement);
         camera.updateAspectRatio(window.aspectRatio());
-        camera.update(player.getPosition(), player.getYaw(), player.getPitch());
+
+        const glm::dvec3 player_position = player.getPosition();
+        glm::dvec3 camera_position_d;
+        glm::dvec3 camera_offset_d;
+        camera_position_d.x = std::modf(player_position.x, &camera_offset_d.x);
+        camera_position_d.y = std::modf(player_position.y, &camera_offset_d.y);
+        camera_position_d.z = std::modf(player_position.z, &camera_offset_d.z);
+        const glm::vec3 camera_position{ camera_position_d };
+        const glm::ivec3 camera_offset{ camera_offset_d };
+
+        camera.update(camera_position, player.getYaw(), player.getPitch());
 
         // (un)lock mouse
         q_button.update(input.getKey(GLFW_KEY_Q));
         if (q_button.state()) window.toggleMouse();
 
-        scene_shader.use();
-        // TODO: more precise calculation (correct rounding)
-        glm::ivec3 center = (player.getPosition() - glm::vec3(cfg::MESH_OFFSET)) / glm::vec3{ cfg::MESH_SIZE };
+        const glm::dvec3 center_d = player_position / glm::dvec3{ cfg::CHUNK_SIZE };
+        const glm::ivec3 center{ std::lround(center_d.x), std::lround(center_d.y), std::lround(center_d.z) };
         vc->moveCenterChunk(center);
-        scene.update(center, q);
+        // TODO: offset ray same as camera and use float and offset (add offset to result)
+        scene.update(center, q, Ray<double>{ player_position, glm::normalize(player.getFacing()) }, *vc.get());
         const auto VP_matrix = camera.getViewProjectionMatrix();
         const auto frustum_planes = Math::matrixToNormalizedFrustumPlanes(VP_matrix);
+        scene.draw_cube(VP_matrix, -camera_offset);
+        camera.update(player.getPosition(), player.getYaw(), player.getPitch());
+        scene_shader.use();
         glUniformMatrix4fv(VP_uniform, 1, GL_FALSE, glm::value_ptr(VP_matrix));
-        scene.draw(offset_uniform, frustum_planes);
+        scene.draw(offset_uniform, frustum_planes, -camera_offset);
         window.swapResizeClearBuffer();
     }
 

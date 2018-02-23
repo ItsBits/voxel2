@@ -2,24 +2,25 @@
 
 #include <unordered_map>
 #include <glm/vec3.hpp>
-#include <glm/glm.hpp>
-#include "../gl3w/gl3w.h"
 #include "QuadEBO.hpp"
-#include <iostream>
-#include <cmath>
-
+#include "Ray.hpp"
 #include "Mesh.hpp"
 #include "LockedQueue.hpp"
-
-#include <glm/gtx/string_cast.hpp>
+#include "VoxelContainer.hpp"
+#include "LineCube.hpp"
 
 class VoxelScene {
 public:
-    void update(const glm::ivec3 & center, LockedQueue<Mesh> & queue);
-    void draw(GLint offset_uniform, const std::array<glm::vec4, 6> & planes);
+    void update(const glm::ivec3 & center, LockedQueue<Mesh> & queue, Ray<double> ray, VoxelContainer & vc);
+    void draw(GLint offset_uniform, const std::array<glm::vec4, 6> & planes, glm::tvec3<cfg::Coord> offset_offset);
+    void draw_cube(const glm::mat4 & VP, const glm::dvec3 & camera_offset);
 
 private:
+    LineCube m_line_cube;
+
     QuadEBO m_quad_ebo;
+    glm::tvec3<cfg::Coord> m_selected_block;
+    bool m_block_hit;
 
     struct ChunkMesh {
         GLuint VAO, VBO;
@@ -34,6 +35,7 @@ private:
         return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
     }};
     // TODO: use Coord (cfg.hpp)
+    // TODO: based on SparseMap try to also use std::vector for potentially faster iteration
     std::unordered_map<glm::ivec3, ChunkMesh, KeyHash, KeyEqual> m_meshes;
 
 };

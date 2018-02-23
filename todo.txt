@@ -6,4 +6,4 @@
 * loading from network
 * cool world generator
 * limit mesh queue size and memory usage
-* keep chunk offset close to origin because of floating point precision
+* keep ray offset close to origin (same as camera)

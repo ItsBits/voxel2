@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include <glm/vec3.hpp>
-
 #include "Math.hpp"
 
 // TODO: configure at runtime by making this namespace a class and
@@ -10,6 +9,8 @@
 namespace cfg {
     using Block = uint8_t;
     using Coord = int32_t;
+
+    static constexpr double MAX_RAY_LENGTH{ 10 };
 
     // TODO: static asserts to check for sane and valid values
     static constexpr glm::tvec3<Coord> CHUNK_SIZE{ 16, 16, 16 };

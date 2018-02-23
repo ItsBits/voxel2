@@ -10,6 +10,7 @@ public:
     T getYaw() const { return m_yaw; }
     T getPitch() const { return m_pitch; }
     const glm::tvec3<T> & getPosition() const { return m_position; }
+    const glm::tvec3<T> & getFacing() const { return m_facing; }
     void update(T dt, const std::array<bool, 6> & keys, glm::tvec2<T> mouse_movement);
 
 private:
