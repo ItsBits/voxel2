@@ -14,13 +14,14 @@ public:
     // public functions are not thread safe
     VoxelContainer();
     ~VoxelContainer();
-    void moveCenterChunk(const glm::tvec3<cfg::Coord> & new_center_chunk);
     LockedQueue<Mesh, cfg::MESH_QUEUE_SIZE_LIMIT> & getQueue() { return m_mesh_queue; }
     // returns read only chunk data, returns nullptr if chunk not available at the moment
     // pointer is invalidated after next call to moveCenterChunk()
     const cfg::Block * getChunk(const glm::tvec3<cfg::Coord> & chunk_position);
     cfg::Block * getWritableChunk(const glm::tvec3<cfg::Coord> & chunk_position);
+    // these two functions may reset the iterator
     void invalidateMeshWithBlockRange(Math::AABB3<cfg::Coord> range);
+    void moveCenterChunk(const glm::tvec3<cfg::Coord> & new_center_chunk);
 
 private:
     LockedQueue<Mesh, cfg::MESH_QUEUE_SIZE_LIMIT> m_mesh_queue;
@@ -40,7 +41,9 @@ private:
     std::array<std::atomic<MeshReadinesType>, cfg::MESH_ARRAY_VOLUME> m_mesh_readines;
     std::array<std::atomic<Math::DumbVec3>, cfg::MESH_ARRAY_VOLUME> m_mesh_positions;
     ThreadBarrier m_barrier;
+    // used for more than what the name suggests
     std::atomic_bool m_center_dirty;
+    std::atomic_size_t m_workers_finished;
 
     static_assert(cfg::MESH_CHUNK_VOLUME == 8);
     static constexpr MeshReadinesType ALL_CHUNKS_READY{ 0b11111111 };

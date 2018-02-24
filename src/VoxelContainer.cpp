@@ -28,6 +28,7 @@ VoxelContainer::VoxelContainer() :
     m_actual_center_chunk = { 0, 0, 0 };
     m_center_dirty.store(false);
     clearMeshReadines();
+    m_workers_finished.store(0);
     std::for_each(std::begin(m_workers), std::end(m_workers), [this](std::thread & worker){
         worker = std::thread{ &VoxelContainer::worker, this };
     });
@@ -100,12 +101,13 @@ void VoxelContainer::invalidateMeshWithBlockRange(Math::AABB3<cfg::Coord> range)
 void VoxelContainer::worker() {
     const auto indices_size = m_voxel_indices.size();
     while (true) {
+        // don't rely on variable center_dirty later, because you don't know which threads registered it as true
         const auto center_dirty = m_center_dirty.exchange(false);
         if (center_dirty) {
             // move iterator to end
             const auto iterator_index_swap = m_iterator.exchange(indices_size);
             if (iterator_index_swap > indices_size)
-            m_iterator.fetch_add(iterator_index_swap - indices_size);
+                m_iterator.fetch_add(iterator_index_swap - indices_size);
         }
 
         const auto iterator_index = m_iterator.fetch_add(1);
@@ -121,12 +123,25 @@ void VoxelContainer::worker() {
                 // TODO: do something better
                 // TODO: and don't sleep if there is work to do (mesh updates)
                 std::this_thread::sleep_for(std::chrono::milliseconds{ 10 });
+
+                // TODO: consider potential issue: if this if block takes longer than next call
+                //       to invalidateMeshWithBlockRange() or moveCenterChunk()
+                //       the iterator will reset again and again causing no chunks to be loaded
+                //       simulate with: std::this_thread::sleep_for(std::chrono::milliseconds{ 1000 });
             }
+
             m_barrier.wait();
-            if (m_workers_running)
+
+            if (m_workers_running) {
                 continue;
-            else
+            } else {
+                // trap workers to prevent some getting stuck in other barriers
+                m_workers_finished.fetch_add(1);
+                do {
+                    m_barrier.wait();
+                } while (m_workers_finished.load() < cfg::WORKER_THREAD_COUNT);
                 break;
+            }
         }
 
         const auto chunk_position = m_voxel_indices[iterator_index] + m_loader_center_chunk;
