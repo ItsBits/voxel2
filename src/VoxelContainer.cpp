@@ -160,8 +160,6 @@ void VoxelContainer::generateMesh(const glm::tvec3<cfg::Coord> & mesh_position, 
     std::array<cfg::Block *, cfg::MESH_CHUNK_VOLUME> chunks;
     glm::tvec3<cfg::Coord> i;
     std::size_t j{ 0 };
-    static std::mutex m;
-    std::lock_guard<std::mutex> ll{ m };
     for (i.z = mesh_position.z + cfg::MESH_CHUNK_START.z; i.z < mesh_position.z + cfg::MESH_CHUNK_END.z; ++i.z)
         for (i.y = mesh_position.y + cfg::MESH_CHUNK_START.y; i.y < mesh_position.y + cfg::MESH_CHUNK_END.y; ++i.y)
             for (i.x = mesh_position.x + cfg::MESH_CHUNK_START.x; i.x < mesh_position.x + cfg::MESH_CHUNK_END.x; ++i.x) {
