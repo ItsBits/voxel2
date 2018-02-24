@@ -1,8 +1,9 @@
 #include "VoxelScene.hpp"
 
 #include "Ray.hpp"
+#include "Print.hpp"
 
-void VoxelScene::update(const glm::ivec3 & center, LockedQueue<Mesh, cfg::MESH_QUEUE_SIZE_LIMIT> & queue, const glm::dvec3 player_position, const glm::dvec3 player_facing, VoxelContainer & vc, bool click) {
+void VoxelScene::update(const glm::ivec3 & center, LockedQueue<Mesh, cfg::MESH_QUEUE_SIZE_LIMIT> & queue, const glm::dvec3 player_position, const glm::dvec3 player_facing, VoxelContainer & vc, bool l_click, bool r_click) {
     glm::dvec3 player_position_d;
     glm::dvec3 player_offset_d;
     player_position_d.x = std::modf(player_position.x, &player_offset_d.x);
@@ -41,13 +42,34 @@ void VoxelScene::update(const glm::ivec3 & center, LockedQueue<Mesh, cfg::MESH_Q
     }
     m_selected_block = ray_state.block_position + player_offset_i;
 
-    if (click) {
-        cfg::Block * chunk_2 = vc.getWritableChunk(Math::floor_div(m_before_selected_block, cfg::CHUNK_SIZE));
-        if (chunk_2 != nullptr) {
-            chunk_2[Math::position_to_index(m_before_selected_block, cfg::CHUNK_SIZE)] = std::rand();
-            vc.invalidateMeshWithBlockRange({ m_before_selected_block, m_before_selected_block });
+    if (l_click || r_click) {
+        Placement placement;
+        if (l_click) {
+            placement.position = m_before_selected_block;
+            placement.block = std::rand();
         } else {
-            // TODO: queue command for later
+            placement.position = m_selected_block;
+            placement.block = 0;
+        }
+        if (m_block_update_queue.size() == cfg::BLOCK_UPDATE_QUEUE_SIZE_LIMIT) {
+            m_block_update_queue.pop();
+            Print("WARNING: Dropping block update queue elements m_block_update_queue is full.");
+        }
+        assert(m_block_update_queue.size() < cfg::BLOCK_UPDATE_QUEUE_SIZE_LIMIT);
+        m_block_update_queue.push(placement);
+    }
+
+    // cycle through all elements
+    const size_t queue_elements = m_block_update_queue.size();
+    for (size_t i = 0; i < queue_elements; ++i) {
+        const Placement placement = m_block_update_queue.front();
+        m_block_update_queue.pop();
+        cfg::Block * const chunk = vc.getWritableChunk(Math::floor_div(placement.position, cfg::CHUNK_SIZE));
+        if (chunk != nullptr) {
+            chunk[Math::position_to_index(placement.position, cfg::CHUNK_SIZE)] = placement.block;
+            vc.invalidateMeshWithBlockRange({ placement.position, placement.position });
+        } else {
+            m_block_update_queue.push(placement);
         }
     }
 

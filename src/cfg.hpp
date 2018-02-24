@@ -12,6 +12,7 @@ namespace cfg {
 
     static constexpr double MAX_RAY_LENGTH{ 10 };
     static constexpr size_t MESH_QUEUE_SIZE_LIMIT{ 128 };
+    static constexpr size_t BLOCK_UPDATE_QUEUE_SIZE_LIMIT{ 8 };
 
     // TODO: static asserts to check for sane and valid values
     // most must be > 1

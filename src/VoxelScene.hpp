@@ -11,7 +11,7 @@
 
 class VoxelScene {
 public:
-    void update(const glm::ivec3 & center, LockedQueue<Mesh, cfg::MESH_QUEUE_SIZE_LIMIT> & queue, const glm::dvec3 player_position, const glm::dvec3 player_facing, VoxelContainer & vc, bool click);
+    void update(const glm::ivec3 & center, LockedQueue<Mesh, cfg::MESH_QUEUE_SIZE_LIMIT> & queue, const glm::dvec3 player_position, const glm::dvec3 player_facing, VoxelContainer & vc, bool l_click, bool r_click);
     void draw(GLint offset_uniform, const std::array<glm::vec4, 6> & planes, glm::tvec3<cfg::Coord> offset_offset);
     void draw_cube(const glm::mat4 & VP, const glm::dvec3 & camera_offset);
 
@@ -22,6 +22,13 @@ private:
     glm::tvec3<cfg::Coord> m_selected_block;
     glm::tvec3<cfg::Coord> m_before_selected_block;
     bool m_block_hit;
+
+    struct Placement {
+        glm::tvec3<cfg::Coord> position;
+        cfg::Block block;
+    };
+
+    std::queue<Placement> m_block_update_queue;
 
     struct ChunkMesh {
         GLuint VAO, VBO;
