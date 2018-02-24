@@ -25,8 +25,8 @@ private:
     // because static constexpr is too much hassle
     const T PI{ 3.14159 };
     const T MAX_PITCH{ 3.14159 / 2.0 - 0.001 };
-    const T INVERSE_MOUSE_SENSITIVITY{ 100.0 };
-    const T SPEED{ 50.0 };
+    const T INVERSE_MOUSE_SENSITIVITY{ 300.0 };
+    const T SPEED{ 20.0 };
 };
 
 //==============================================================================

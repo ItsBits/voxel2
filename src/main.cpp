@@ -42,6 +42,8 @@ int main() {
 
     Window window{ window_hints };
 
+    LineCube center_marker;
+
     glEnable(GL_DEPTH_TEST);
     //glEnable(GL_CULL_FACE);
     glDepthFunc(GL_LEQUAL); // sky box
@@ -109,6 +111,9 @@ int main() {
         scene_shader.use();
         glUniformMatrix4fv(VP_uniform, 1, GL_FALSE, glm::value_ptr(VP_matrix));
         scene.draw(offset_uniform, frustum_planes, -camera_offset);
+
+        static constexpr glm::vec3 CENTER_MARKER_SIZE{ 0.02f, 0.02f, 0.02f };
+        center_marker.draw({}, -CENTER_MARKER_SIZE / 2.0f, CENTER_MARKER_SIZE * glm::vec3{ 1.0f, static_cast<float>(window.aspectRatio()), 1.0f });
         window.swapResizeClearBuffer();
     }
 

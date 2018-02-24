@@ -124,6 +124,8 @@ void VoxelScene::draw(GLint offset_uniform, const std::array<glm::vec4, 6> & pla
 }
 
 void VoxelScene::draw_cube(const glm::mat4 & VP, const glm::dvec3 & camera_offset) {
-    m_line_cube.draw(VP, m_before_selected_block + glm::ivec3{ camera_offset }, { 1, 1, 1 });
-    m_line_cube.draw(VP, m_selected_block + glm::ivec3{ camera_offset }, { 1, 1, 1 });
+    if (m_block_hit) {
+        m_line_cube.draw(VP, m_before_selected_block + glm::ivec3{ camera_offset }, { 1, 1, 1 });
+        m_line_cube.draw(VP, m_selected_block + glm::ivec3{ camera_offset }, { 1, 1, 1 });
+    }
 }
