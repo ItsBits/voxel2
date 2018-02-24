@@ -38,6 +38,7 @@ VoxelContainer::~VoxelContainer() {
     m_workers_running.store(false);
     // speed up shutdown of workers
     m_center_dirty.store(true);
+    m_condition.notify_one();
     // empty mesh queue after set m_center_dirty 
     // no need to fully empty queue
     // making cfg::WORKER_THREAD_COUNT slots in queue is enough
@@ -56,8 +57,10 @@ void VoxelContainer::moveCenterChunk(const glm::tvec3<cfg::Coord> & new_center_c
         Math::toAABB3(m_actual_center_chunk, cfg::CHUNK_LOADING_RADIUS),
         Math::toAABB3(m_loader_center_chunk, cfg::CHUNK_LOADING_RADIUS)
     );
-    if (changed)
+    if (changed) {
         m_center_dirty.store(true);
+        m_condition.notify_one();
+    }
 }
 
 const cfg::Block * VoxelContainer::getChunk(const glm::tvec3<cfg::Coord> & chunk_position) {
@@ -96,13 +99,14 @@ void VoxelContainer::invalidateMeshWithBlockRange(Math::AABB3<cfg::Coord> range)
                 m_mesh_positions[mesh_index].store(Math::toDumb3(i + glm::tvec3<cfg::Coord>{ 0, 0, 1 }));                
             }
     m_center_dirty.store(true);
+    m_condition.notify_one();
 }
 
 void VoxelContainer::worker() {
     const auto indices_size = m_voxel_indices.size();
     while (true) {
         // don't rely on variable center_dirty later, because you don't know which threads registered it as true
-        const auto center_dirty = m_center_dirty.exchange(false);
+        const auto center_dirty = m_center_dirty.load(); // well whatever, more hacks
         if (center_dirty) {
             // move iterator to end
             const auto iterator_index_swap = m_iterator.exchange(indices_size);
@@ -116,13 +120,11 @@ void VoxelContainer::worker() {
                 // you are last
                 clearMeshReadines();
                 m_iterator.store(0);
-                {
-                    std::lock_guard<std::mutex> lock{ m_center_lock };
-                    m_loader_center_chunk = m_actual_center_chunk;
-                }
-                // TODO: do something better
-                // TODO: and don't sleep if there is work to do (mesh updates)
-                std::this_thread::sleep_for(std::chrono::milliseconds{ 10 });
+                
+                std::unique_lock<std::mutex> lock{ m_center_lock };
+                m_loader_center_chunk = m_actual_center_chunk;
+                while (m_center_dirty.exchange(false) == false)
+                    m_condition.wait(lock);
 
                 // TODO: consider potential issue: if this if block takes longer than next call
                 //       to invalidateMeshWithBlockRange() or moveCenterChunk()

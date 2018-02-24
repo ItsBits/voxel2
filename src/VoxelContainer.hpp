@@ -44,6 +44,7 @@ private:
     // used for more than what the name suggests
     std::atomic_bool m_center_dirty;
     std::atomic_size_t m_workers_finished;
+    std::condition_variable m_condition;
 
     static_assert(cfg::MESH_CHUNK_VOLUME == 8);
     static constexpr MeshReadinesType ALL_CHUNKS_READY{ 0b11111111 };

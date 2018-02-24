@@ -3,5 +3,5 @@
 * loading from network
 * cool world generator
 * make cmake more portable
-* wakeup worker when mesh or chunk updates are necessary, don't do sleep(100ms)
 * improve std::vector<cfg::Vertex> storage allocation strategy
+* limit the chunk iterator reset rate to prevent a livelock
