@@ -50,6 +50,7 @@ int main() {
     glEnable(GL_CULL_FACE);
 
     Monostable q_button;
+    Monostable mouse_button;
     Camera<float> camera;
     Player<double> player;
     Input input{ window.getWindowPtr() };
@@ -93,12 +94,14 @@ int main() {
         // (un)lock mouse
         q_button.update(input.getKey(GLFW_KEY_Q));
         if (q_button.state()) window.toggleMouse();
+        mouse_button.update(input.getButton(0));
 
         const glm::dvec3 center_d = player_position / glm::dvec3{ cfg::CHUNK_SIZE };
         const glm::ivec3 center{ std::lround(center_d.x), std::lround(center_d.y), std::lround(center_d.z) };
+        // move after updating chunks to reduce change of getwritable failure?
         vc->moveCenterChunk(center);
         // TODO: offset ray same as camera and use float and offset (add offset to result)
-        scene.update(center, q, player_position, player.getFacing(), *vc.get());
+        scene.update(center, q, player_position, player.getFacing(), *vc.get(), mouse_button.state());
         const auto VP_matrix = camera.getViewProjectionMatrix();
         const auto frustum_planes = Math::matrixToNormalizedFrustumPlanes(VP_matrix);
         scene.draw_cube(VP_matrix, -camera_offset);

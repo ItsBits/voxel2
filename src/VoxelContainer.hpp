@@ -19,6 +19,8 @@ public:
     // returns read only chunk data, returns nullptr if chunk not available at the moment
     // pointer is invalidated after next call to moveCenterChunk()
     const cfg::Block * getChunk(const glm::tvec3<cfg::Coord> & chunk_position);
+    cfg::Block * getWritableChunk(const glm::tvec3<cfg::Coord> & chunk_position);
+    void invalidateMeshWithBlockRange(Math::AABB3<cfg::Coord> range);
 
 private:
     LockedQueue<Mesh> m_mesh_queue;
@@ -36,8 +38,7 @@ private:
     std::mutex m_center_lock;
     using MeshReadinesType = uint8_t;
     std::array<std::atomic<MeshReadinesType>, cfg::MESH_ARRAY_VOLUME> m_mesh_readines;
-    std::array<glm::tvec3<cfg::Coord>, cfg::MESH_ARRAY_VOLUME> m_mesh_positions;
-    //std::array<std::vector<cfg::Vertex>, cfg::MESH_ARRAY_VOLUME> m_meshes;
+    std::array<std::atomic<Math::DumbVec3>, cfg::MESH_ARRAY_VOLUME> m_mesh_positions;
     ThreadBarrier m_barrier;
     std::atomic_bool m_center_dirty;
 
@@ -47,7 +48,9 @@ private:
     void worker();
     void clearMeshReadines();
     std::size_t markMeshes(const glm::tvec3<cfg::Coord> & chunk_position, std::array<glm::tvec3<cfg::Coord>, cfg::CHUNK_MESH_VOLUME> & meshes_to_load);
+    bool checkMeshes(const glm::tvec3<cfg::Coord> & chunk_position);
     void generateChunk(cfg::Block * chunk, const glm::tvec3<cfg::Coord> & chunk_position);
     void generateMesh(const glm::tvec3<cfg::Coord> & mesh_position, std::vector<cfg::Vertex> & mesh);
+    cfg::Block * getChunkNonConst(const glm::tvec3<cfg::Coord> & chunk_position);
 
 };

@@ -87,8 +87,6 @@ void mesher::mesh<mesher::MesherType::STANDARD>(
                 auto block = block_get(i); // TODO: this can in future probably be set to reference
                 if (block == 0) continue;
 
-                block = std::rand() % 254 + 1;
-
                 // X + 1
                 if (block_get({ i.x + 1, i.y, i.z }) == 0)
                 {

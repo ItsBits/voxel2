@@ -1,7 +1,9 @@
 * remove out of range meshes
 * load from file, store to file (pread, pwrite without lock because write only appends, lock only on defragment)
 * make chunk 1D array, no need for CHUNK_SIZE.xyz
-* world editing
+* queue failed world modifications
 * loading from network
 * cool world generator
 * limit mesh queue size and memory usage
+* make cmake more portable
+* wakeup worker when mesh or chunk updates are necessary, don't do sleep(100ms)

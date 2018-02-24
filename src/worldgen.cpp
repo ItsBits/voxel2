@@ -14,7 +14,7 @@ void worldgen::generate<worldgen::WorldGenType::STANDARD>(
             for (i.x = fr.x; i.x < to.x; ++i.x) {
                 const auto index = Math::position_to_index(i, cfg::CHUNK_SIZE);
                 if (i.y < 0)
-                    chunk[index] = std::rand() % 100 == 0;
+                    chunk[index] = std::rand() % 100 == 0 ? std::rand() : 0;
                 else
                     chunk[index] = 0;
 
@@ -42,4 +42,19 @@ void worldgen::generate<worldgen::WorldGenType::STANDARD>(
 */
             }
 
+}
+
+template <>
+void worldgen::generate<worldgen::WorldGenType::AIR>(
+    cfg::Block * chunk, const glm::tvec3<cfg::Coord> & chunk_position
+) {
+    glm::tvec3<cfg::Coord> i;
+    const glm::tvec3<cfg::Coord> fr{ chunk_position * cfg::CHUNK_SIZE };
+    const glm::tvec3<cfg::Coord> to{ fr + cfg::CHUNK_SIZE };
+    for (i.z = fr.z; i.z < to.z; ++i.z)
+        for (i.y = fr.y; i.y < to.y; ++i.y)
+            for (i.x = fr.x; i.x < to.x; ++i.x) {
+                const auto index = Math::position_to_index(i, cfg::CHUNK_SIZE);
+                chunk[index] = 0;
+            }
 }

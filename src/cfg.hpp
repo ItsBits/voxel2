@@ -13,6 +13,7 @@ namespace cfg {
     static constexpr double MAX_RAY_LENGTH{ 10 };
 
     // TODO: static asserts to check for sane and valid values
+    // most must be > 1
     static constexpr glm::tvec3<Coord> CHUNK_SIZE{ 16, 16, 16 };
     static constexpr glm::tvec3<Coord> CHUNK_ARRAY_SIZE{ 32, 16, 32 };
     static constexpr glm::tvec3<Coord> MESH_SIZE{ 16, 16, 16 };
@@ -21,6 +22,8 @@ namespace cfg {
 
     static constexpr glm::tvec3<Coord> MESH_OFFSET{ 8, 8, 8 }; // TODO: MESH_SIZE / 2
     static constexpr glm::tvec3<Coord> MESH_LOADING_RADIUS{ 14, 6, 14 };
+
+    static constexpr glm::tvec3<Coord> BLOCK_MESH_EFFECT_RADIUS{ 1, 1, 1 };
 
     // TODO: better calculation method
     static_assert( // for CHUNK_LOADING_RADIUS

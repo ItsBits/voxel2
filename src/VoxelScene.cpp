@@ -2,42 +2,54 @@
 
 #include "Ray.hpp"
 
-void VoxelScene::update(const glm::ivec3 & center, LockedQueue<Mesh> & queue, const glm::dvec3 player_position, const glm::dvec3 player_facing, VoxelContainer & vc) {
-
+void VoxelScene::update(const glm::ivec3 & center, LockedQueue<Mesh> & queue, const glm::dvec3 player_position, const glm::dvec3 player_facing, VoxelContainer & vc, bool click) {
     glm::dvec3 player_position_d;
     glm::dvec3 player_offset_d;
     player_position_d.x = std::modf(player_position.x, &player_offset_d.x);
     player_position_d.y = std::modf(player_position.y, &player_offset_d.y);
     player_position_d.z = std::modf(player_position.z, &player_offset_d.z);
     const glm::vec3 player_position_f{ player_position_d };
-    const glm::ivec3 player_offset_f{ player_offset_d };
-
+    const glm::ivec3 player_offset_i{ player_offset_d };
 
     // cast ray
-
-
     Ray<float, cfg::Coord> ray{ player_position_f, player_facing };
     Ray<float, cfg::Coord>::State ray_state = ray.next();
-    glm::tvec3<cfg::Coord> chunk_position = Math::floor_div(ray_state.block_position + player_offset_f, cfg::CHUNK_SIZE);
+    m_before_selected_block = ray_state.block_position + player_offset_i;
+    glm::tvec3<cfg::Coord> chunk_position = Math::floor_div(ray_state.block_position + player_offset_i, cfg::CHUNK_SIZE);
     const cfg::Block * chunk = vc.getChunk(chunk_position);
     m_block_hit = false;
-
     while (ray_state.distance <= cfg::MAX_RAY_LENGTH && chunk != nullptr) {
-        const auto block_index = Math::position_to_index(ray_state.block_position + player_offset_f, cfg::CHUNK_SIZE);
+        const auto block_index = Math::position_to_index(ray_state.block_position + player_offset_i, cfg::CHUNK_SIZE);
         const cfg::Block & block = chunk[block_index];
         if (block != cfg::Block{ 0 }) {
             m_block_hit = true;
             break;
         }
+        const auto this_block = ray_state.block_position;
         ray_state = ray.next();
-        const auto new_chunk_position = Math::floor_div(ray_state.block_position + player_offset_f, cfg::CHUNK_SIZE);
+        if (ray_state.distance > cfg::MAX_RAY_LENGTH) {
+            // unclean hack (reverts)
+            ray_state.block_position = this_block;
+             break;
+        }
+        m_before_selected_block = this_block + player_offset_i;
+        const auto new_chunk_position = Math::floor_div(ray_state.block_position + player_offset_i, cfg::CHUNK_SIZE);
         if (!glm::all(glm::equal(new_chunk_position, chunk_position))) {
             chunk_position = new_chunk_position;
             chunk = vc.getChunk(chunk_position);
         }
     }
+    m_selected_block = ray_state.block_position + player_offset_i;
 
-    m_selected_block = ray_state.block_position + player_offset_f;
+    if (click) {
+        cfg::Block * chunk_2 = vc.getWritableChunk(Math::floor_div(m_before_selected_block, cfg::CHUNK_SIZE));
+        if (chunk_2 != nullptr) {
+            chunk_2[Math::position_to_index(m_before_selected_block, cfg::CHUNK_SIZE)] = std::rand();
+            vc.invalidateMeshWithBlockRange({ m_before_selected_block, m_before_selected_block });
+        } else {
+            // TODO: queue command for later
+        }
+    }
 
     // TODO: delete out of range meshes
     /*
@@ -79,8 +91,15 @@ void VoxelScene::update(const glm::ivec3 & center, LockedQueue<Mesh> & queue, co
 
         glBindBuffer(GL_ARRAY_BUFFER, chunk_mesh.VBO);
         glBufferData(GL_ARRAY_BUFFER, m.mesh.size() * sizeof(m.mesh[0]), m.mesh.data(), GL_STATIC_DRAW);
-
-        m_meshes.insert({ m.position, chunk_mesh });
+        
+        const auto mesh_entry = m_meshes.find(m.position);
+        if (mesh_entry != m_meshes.end()) {
+            glDeleteBuffers(1, &mesh_entry->second.VBO);
+            glDeleteVertexArrays(1, &mesh_entry->second.VAO);
+            mesh_entry->second = chunk_mesh;
+        } else {
+            m_meshes.insert({ m.position, chunk_mesh });
+        }
     }
 }
 
@@ -105,7 +124,6 @@ void VoxelScene::draw(GLint offset_uniform, const std::array<glm::vec4, 6> & pla
 }
 
 void VoxelScene::draw_cube(const glm::mat4 & VP, const glm::dvec3 & camera_offset) {
-//    if (m_block_hit)
-        m_line_cube.draw(VP, m_selected_block + glm::ivec3{ camera_offset }, { 1, 1, 1 });
-    //m_line_cube.draw(VP, { 0, 0, 0 }, { 1, 1, 1 });
+    m_line_cube.draw(VP, m_before_selected_block + glm::ivec3{ camera_offset }, { 1, 1, 1 });
+    m_line_cube.draw(VP, m_selected_block + glm::ivec3{ camera_offset }, { 1, 1, 1 });
 }
