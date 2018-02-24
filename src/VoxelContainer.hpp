@@ -18,8 +18,10 @@ public:
     // returns read only chunk data, returns nullptr if chunk not available at the moment
     // pointer is invalidated after next call to moveCenterChunk()
     const cfg::Block * getChunk(const glm::tvec3<cfg::Coord> & chunk_position);
+    // TODO: set chunks dirty
     cfg::Block * getWritableChunk(const glm::tvec3<cfg::Coord> & chunk_position);
     // these two functions may reset the iterator
+    // IMPORTANT: invalidating meshes outside of chunks received from calls to getWritableChunk() since last call to moveCenterChunk() is undefined behaviour
     void invalidateMeshWithBlockRange(Math::AABB3<cfg::Coord> range);
     void moveCenterChunk(const glm::tvec3<cfg::Coord> & new_center_chunk);
 
@@ -40,6 +42,7 @@ private:
     using MeshReadinesType = uint8_t;
     std::array<std::atomic<MeshReadinesType>, cfg::MESH_ARRAY_VOLUME> m_mesh_readines;
     std::array<std::atomic<Math::DumbVec3>, cfg::MESH_ARRAY_VOLUME> m_mesh_positions;
+    std::array<bool, cfg::MESH_ARRAY_VOLUME> m_mesh_empties;
     ThreadBarrier m_barrier;
     // used for more than what the name suggests
     std::atomic_bool m_center_dirty;

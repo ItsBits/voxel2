@@ -5,22 +5,20 @@
 #include <glm/gtx/string_cast.hpp>
 
 #include "mesher.hpp"
-#include "Print.hpp"
 #include "worldgen.hpp"
 
 VoxelContainer::VoxelContainer() :
     m_barrier{ cfg::WORKER_THREAD_COUNT }
 {
     std::for_each(std::begin(m_chunk_positions), std::end(m_chunk_positions), [this](std::atomic<Math::DumbVec3> & vector){
-        vector.store(Math::toDumb3(glm::tvec3<cfg::Coord>{ 0, 0, 0 }));
+        vector.store(Math::toDumb3(glm::tvec3<cfg::Coord>{ 0, 0, 0 }, false));
     });
-    m_chunk_positions[0].store(Math::toDumb3(glm::tvec3<cfg::Coord>{ 1, 0, 0 }));
+    m_chunk_positions[0].store(Math::toDumb3(glm::tvec3<cfg::Coord>{ 1, 0, 0 }, false));
     std::for_each(std::begin(m_mesh_positions), std::end(m_mesh_positions), [this](std::atomic<Math::DumbVec3> & vector){
-        vector.store(Math::toDumb3(glm::tvec3<cfg::Coord>{ 0, 0, 0 }));
+        vector.store(Math::toDumb3(glm::tvec3<cfg::Coord>{ 0, 0, 0 }, false));
     });
-    m_mesh_positions[0].store(Math::toDumb3(glm::tvec3<cfg::Coord>{ 1, 0, 0 }));
-    //std::fill(std::begin(m_mesh_positions), std::end(m_mesh_positions), glm::tvec3<cfg::Coord>{ 0, 0, 0 });
-    //m_mesh_positions[0].x = 1;
+    m_mesh_positions[0].store(Math::toDumb3(glm::tvec3<cfg::Coord>{ 1, 0, 0 }, false));
+    std::fill(std::begin(m_mesh_empties), std::end(m_mesh_empties), true);
     std::fill(std::begin(m_blocks), std::end(m_blocks), cfg::Block{ 0 });
     m_workers_running.store(true);
     m_iterator.store(0);
@@ -69,7 +67,10 @@ const cfg::Block * VoxelContainer::getChunk(const glm::tvec3<cfg::Coord> & chunk
 
 cfg::Block * VoxelContainer::getChunkNonConst(const glm::tvec3<cfg::Coord> & chunk_position) {
     const auto chunk_index = Math::position_to_index(chunk_position, cfg::CHUNK_ARRAY_SIZE);
-    const auto loaded_chunk_position = Math::toVec3<cfg::Coord>(m_chunk_positions[chunk_index].load());
+    bool valid_chunk;
+    const auto loaded_chunk_position = Math::toVec3<cfg::Coord>(m_chunk_positions[chunk_index].load(), valid_chunk);
+    if (!valid_chunk)
+        return nullptr;
     if (!glm::all(glm::equal(loaded_chunk_position, chunk_position)))
         return nullptr;
     if (!Math::inside(m_center_chunk_overlap, chunk_position))
@@ -95,8 +96,9 @@ void VoxelContainer::invalidateMeshWithBlockRange(Math::AABB3<cfg::Coord> range)
     for (i.z = range.min.z; i.z <= range.max.z; ++i.z)
         for (i.y = range.min.y; i.y <= range.max.y; ++i.y)
             for (i.x = range.min.x; i.x <= range.max.x; ++i.x) {
+                // assert correct mesh loaded, if not undefined beaviour
                 const auto mesh_index = Math::position_to_index(i, cfg::MESH_ARRAY_SIZE);
-                m_mesh_positions[mesh_index].store(Math::toDumb3(i + glm::tvec3<cfg::Coord>{ 0, 0, 1 }));                
+                m_mesh_positions[mesh_index].store(Math::toDumb3(i, false)); // alternatively atomic_fetch_and(valid_flag)
             }
     m_center_dirty.store(true);
     m_condition.notify_one();
@@ -148,9 +150,11 @@ void VoxelContainer::worker() {
 
         const auto chunk_position = m_voxel_indices[iterator_index] + m_loader_center_chunk;
         const auto chunk_index = Math::position_to_index(chunk_position, cfg::CHUNK_ARRAY_SIZE);
-        if (!glm::all(glm::equal(chunk_position, Math::toVec3<cfg::Coord>(m_chunk_positions[chunk_index].load())))) {
-            m_chunk_positions[chunk_index].store(Math::toDumb3(chunk_position));
+        bool chunk_valid;
+        if (!glm::all(glm::equal(chunk_position, Math::toVec3<cfg::Coord>(m_chunk_positions[chunk_index].load(), chunk_valid)))) {
+            m_chunk_positions[chunk_index].store(Math::toDumb3(chunk_position, false));
             generateChunk(m_blocks.data() + chunk_index * cfg::CHUNK_VOLUME, chunk_position);
+            m_chunk_positions[chunk_index].store(Math::toDumb3(chunk_position, true));
         }
 
         std::array<glm::tvec3<cfg::Coord>, cfg::CHUNK_MESH_VOLUME> meshes_to_load;
@@ -161,9 +165,22 @@ void VoxelContainer::worker() {
             const auto mesh_index = Math::position_to_index(meshes_to_load[i], cfg::MESH_ARRAY_SIZE);
             generateMesh(meshes_to_load[i], mesh.mesh);
             // must be set after generating mesh
-            m_mesh_positions[mesh_index].store(Math::toDumb3(meshes_to_load[i]));
-            if (mesh.mesh.size() > 0)
+            bool old_mesh_valid;
+            const auto old_mesh_position = Math::toVec3<cfg::Coord>(m_mesh_positions[mesh_index].load(), old_mesh_valid);
+            // if same position, just replace (already implemented in VoxelScene), don't erase + insert
+            if (m_mesh_empties[mesh_index] == false) {
+                // empty vector indicates remove that mesh
+                Mesh mm;
+                mm.position = old_mesh_position;
+                m_mesh_queue.push(std::move(mm));
+            }
+            m_mesh_positions[mesh_index].store(Math::toDumb3(meshes_to_load[i], true));
+            if (mesh.mesh.size() > 0) {
+                m_mesh_empties[mesh_index] = false;
                 m_mesh_queue.push(std::move(mesh));
+            } else {
+                m_mesh_empties[mesh_index] = true;
+            }
         }
     }
 }
@@ -171,8 +188,7 @@ void VoxelContainer::worker() {
 void VoxelContainer::generateMesh(const glm::tvec3<cfg::Coord> & mesh_position, std::vector<cfg::Vertex> & mesh) {
     // check if mesh really not generated from before
     const auto mesh_index = Math::position_to_index(mesh_position, cfg::MESH_ARRAY_SIZE);
-    if (glm::all(glm::equal(mesh_position, Math::toVec3<cfg::Coord>(m_mesh_positions[mesh_index].load()))))
-        return;
+
     // collect needed chunks (not really necessary, original array could be directly adressed)
     std::array<cfg::Block *, cfg::MESH_CHUNK_VOLUME> chunks;
     glm::tvec3<cfg::Coord> i;
@@ -183,15 +199,6 @@ void VoxelContainer::generateMesh(const glm::tvec3<cfg::Coord> & mesh_position, 
                 // assuming chunks are loaded now
                 const auto chunk_index = Math::position_to_index(i, cfg::CHUNK_ARRAY_SIZE);
                 chunks[j++] = m_blocks.data() + cfg::CHUNK_VOLUME * chunk_index;
-                const auto correct = i;
-                const auto actual = Math::toVec3<cfg::Coord>(m_chunk_positions[chunk_index].load());
-                // TODO: remove
-                if (!glm::all(glm::equal(correct, actual))) {
-                    for (size_t l = 0; l < m_chunk_positions.size(); ++l)
-                        Print("->", glm::to_string(Math::toVec3<cfg::Coord>(m_chunk_positions[l].load())), ' ', l);
-                    int dummy = 42;
-                    throw 0;
-                }
             }
     // generate mesh
     return mesher::mesh<mesher::MesherType::STANDARD>(mesh, chunks);
@@ -213,10 +220,13 @@ std::size_t VoxelContainer::markMeshes(const glm::tvec3<cfg::Coord> & chunk_posi
                 const auto mesh_index = Math::position_to_index(i, cfg::MESH_ARRAY_SIZE);
                 const MeshReadinesType state = m_mesh_readines[mesh_index].fetch_or(mask) | mask;
                 mask <<= 1;
+                bool mesh_valid;
                 if (
                     state == ALL_CHUNKS_READY &&
-                    !glm::all(glm::equal(i, Math::toVec3<cfg::Coord>(m_mesh_positions[mesh_index].load())))
+                    !glm::all(glm::equal(i, Math::toVec3<cfg::Coord>(m_mesh_positions[mesh_index].load(), mesh_valid)))
                     )
+                    meshes_to_load[meshes_to_load_count++] = i;
+                else if (state == ALL_CHUNKS_READY && !mesh_valid)
                     meshes_to_load[meshes_to_load_count++] = i;
             }
     return meshes_to_load_count;
@@ -228,7 +238,10 @@ bool VoxelContainer::checkMeshes(const glm::tvec3<cfg::Coord> & chunk_position) 
         for (i.y = chunk_position.y + cfg::CHUNK_MESH_START.y; i.y < chunk_position.y + cfg::CHUNK_MESH_END.y; ++i.y)
             for (i.x = chunk_position.x + cfg::CHUNK_MESH_START.x; i.x < chunk_position.x + cfg::CHUNK_MESH_END.x; ++i.x) {
                 const auto mesh_index = Math::position_to_index(i, cfg::MESH_ARRAY_SIZE);
-                if (!glm::all(glm::equal(i, Math::toVec3<cfg::Coord>(m_mesh_positions[mesh_index].load()))))
+                bool mesh_valid;
+                if (!glm::all(glm::equal(i, Math::toVec3<cfg::Coord>(m_mesh_positions[mesh_index].load(), mesh_valid))))
+                    return false;
+                if (!mesh_valid)
                     return false;
             }
     return true;

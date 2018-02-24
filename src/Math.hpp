@@ -9,7 +9,7 @@ namespace Math {
     // this limits the world to 2^21*CHUNK_SIZE.x world width (and so on for other dimensions)
     using DumbVec3 = uint64_t;
     template<typename T>
-    glm::tvec3<T> toVec3(DumbVec3 d) {
+    glm::tvec3<T> toVec3(DumbVec3 d, bool & valid_flag) {
         static_assert(std::is_integral<T>::value && std::is_signed<T>::value);
         static_assert(sizeof(T) * CHAR_BIT >= 21);
         static_assert(-1 == ~0);
@@ -23,10 +23,11 @@ namespace Math {
         v.x >>= sizeof(T) * CHAR_BIT - 21;
         v.y >>= sizeof(T) * CHAR_BIT - 21;
         v.z >>= sizeof(T) * CHAR_BIT - 21;
+        valid_flag = ((DumbVec3(1) << DumbVec3(63)) & d) != 0;
         return v;
     }
     template<typename T>
-    DumbVec3 toDumb3(glm::tvec3<T> v) {
+    DumbVec3 toDumb3(glm::tvec3<T> v, bool valid_flag) {
         static_assert(std::is_integral<T>::value && std::is_signed<T>::value);
         static_assert(sizeof(T) * CHAR_BIT >= 21);
         static_assert(-1 == ~0);
@@ -36,7 +37,7 @@ namespace Math {
         return
             DumbVec3(v.x) << DumbVec3(0 * 21) |
             DumbVec3(v.y) << DumbVec3(1 * 21) |
-            DumbVec3(v.z) << DumbVec3(2 * 21);
+            DumbVec3(v.z) << DumbVec3(2 * 21) | (valid_flag ? (DumbVec3(1) << DumbVec3(63)) : DumbVec3(0));
     }
 
     template <typename T>

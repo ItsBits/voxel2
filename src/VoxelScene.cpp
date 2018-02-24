@@ -92,7 +92,14 @@ void VoxelScene::update(const glm::ivec3 & center, LockedQueue<Mesh, cfg::MESH_Q
     while (queue.pop(std::move(m))) {
         ChunkMesh chunk_mesh;
         const size_t vetrex_count = m.mesh.size();
-        if (vetrex_count == 0) continue;
+        if (vetrex_count == 0) {
+            const auto mesh_entry = m_meshes.find(m.position);
+            assert(mesh_entry != m_meshes.end());
+            glDeleteBuffers(1, &mesh_entry->second.VBO);
+            glDeleteVertexArrays(1, &mesh_entry->second.VAO);
+            m_meshes.erase(m.position);
+            continue;
+        }
         // size should always be divisible by 2
         chunk_mesh.element_count = vetrex_count + (vetrex_count / 2);
 

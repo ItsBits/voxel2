@@ -1,7 +1,7 @@
-* remove out of range meshes
 * load from file, store to file (pread, pwrite without lock because write only appends, lock only on defragment)
 * loading from network
 * cool world generator
 * make cmake more portable
+* bulk mesh update to prevent artefacts like holes
 * improve std::vector<cfg::Vertex> storage allocation strategy
 * limit the chunk iterator reset rate to prevent a livelock
