@@ -15,7 +15,7 @@ public:
     VoxelContainer();
     ~VoxelContainer();
     void moveCenterChunk(const glm::tvec3<cfg::Coord> & new_center_chunk);
-    LockedQueue<Mesh> & getQueue() { return m_mesh_queue; }
+    LockedQueue<Mesh, cfg::MESH_QUEUE_SIZE_LIMIT> & getQueue() { return m_mesh_queue; }
     // returns read only chunk data, returns nullptr if chunk not available at the moment
     // pointer is invalidated after next call to moveCenterChunk()
     const cfg::Block * getChunk(const glm::tvec3<cfg::Coord> & chunk_position);
@@ -23,7 +23,7 @@ public:
     void invalidateMeshWithBlockRange(Math::AABB3<cfg::Coord> range);
 
 private:
-    LockedQueue<Mesh> m_mesh_queue;
+    LockedQueue<Mesh, cfg::MESH_QUEUE_SIZE_LIMIT> m_mesh_queue;
     std::array<cfg::Block, cfg::CHUNK_VOLUME * cfg::CHUNK_ARRAY_VOLUME> m_blocks;
     // this atomic vec array makes me cry
     // without atomic -> undefined behaviour, but should work correctly on any common platforms anyway

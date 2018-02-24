@@ -23,7 +23,7 @@
 
 int main() {
     std::unique_ptr<VoxelContainer> vc = std::make_unique<VoxelContainer>();
-    LockedQueue<Mesh> & q = vc->getQueue();
+    LockedQueue<Mesh, cfg::MESH_QUEUE_SIZE_LIMIT> & q = vc->getQueue();
 
     //std::system("rm world/*");
     Window::Hints window_hints;

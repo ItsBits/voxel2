@@ -37,6 +37,11 @@ VoxelContainer::~VoxelContainer() {
     m_workers_running.store(false);
     // speed up shutdown of workers
     m_center_dirty.store(true);
+    // empty mesh queue after set m_center_dirty 
+    // no need to fully empty queue
+    // making cfg::WORKER_THREAD_COUNT slots in queue is enough
+    Mesh m;
+    while (m_mesh_queue.pop(std::move(m)));
     std::for_each(std::begin(m_workers), std::end(m_workers), [this](std::thread & worker){
         worker.join();
     });

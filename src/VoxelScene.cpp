@@ -2,7 +2,7 @@
 
 #include "Ray.hpp"
 
-void VoxelScene::update(const glm::ivec3 & center, LockedQueue<Mesh> & queue, const glm::dvec3 player_position, const glm::dvec3 player_facing, VoxelContainer & vc, bool click) {
+void VoxelScene::update(const glm::ivec3 & center, LockedQueue<Mesh, cfg::MESH_QUEUE_SIZE_LIMIT> & queue, const glm::dvec3 player_position, const glm::dvec3 player_facing, VoxelContainer & vc, bool click) {
     glm::dvec3 player_position_d;
     glm::dvec3 player_offset_d;
     player_position_d.x = std::modf(player_position.x, &player_offset_d.x);

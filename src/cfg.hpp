@@ -11,6 +11,7 @@ namespace cfg {
     using Coord = int32_t;
 
     static constexpr double MAX_RAY_LENGTH{ 10 };
+    static constexpr size_t MESH_QUEUE_SIZE_LIMIT{ 128 };
 
     // TODO: static asserts to check for sane and valid values
     // most must be > 1
@@ -59,6 +60,7 @@ namespace cfg {
     static constexpr Coord MESH_LOADING_VOLUME{ Math::volume(MESH_LOADING_SIZE) };
 
     static constexpr size_t WORKER_THREAD_COUNT{ 4 };
+    static_assert(WORKER_THREAD_COUNT < MESH_QUEUE_SIZE_LIMIT, "Becasue ~VoxelContainer().");
 
     static_assert(
         cfg::MESH_LOADING_RADIUS.x >= 0 &&

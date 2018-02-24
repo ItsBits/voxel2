@@ -4,6 +4,6 @@
 * queue failed world modifications
 * loading from network
 * cool world generator
-* limit mesh queue size and memory usage
+* improve std::vector<cfg::Vertex> storage allocation strategy
 * make cmake more portable
 * wakeup worker when mesh or chunk updates are necessary, don't do sleep(100ms)
