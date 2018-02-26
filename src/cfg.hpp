@@ -10,6 +10,11 @@ namespace cfg {
     using Block = uint8_t;
     using Coord = int32_t;
 
+    // when generating will always produce same chunk and generating is very cheap
+    // like worldgen::WorldGenType::AIR, this can be set to false to save disk space
+    static constexpr bool SAVE_NEWLY_GENERATED_CHUNKS{ true };
+    static constexpr size_t DEFRAGMENT_GARBAGE_THRESHOLD{ 1024 * 128 };
+
     static constexpr double MAX_RAY_LENGTH{ 10 };
     static constexpr size_t MESH_QUEUE_SIZE_LIMIT{ 128 };
     static constexpr size_t BLOCK_UPDATE_QUEUE_SIZE_LIMIT{ 8 };
@@ -52,6 +57,10 @@ namespace cfg {
     static constexpr Coord MESH_ARRAY_VOLUME{ Math::volume(MESH_ARRAY_SIZE) };
     static constexpr Coord REGION_VOLUME{ Math::volume(REGION_SIZE) };
 
+    // TODO: profile and see if caching makes sense (it is supposed to reduce ChunkContainer::m_mutex contention)
+    static constexpr glm::tvec3<Coord> WORKER_REGION_CACHE_SIZE{ 2, 2, 2 };
+    static constexpr Coord WORKER_REGION_CACHE_VOLUME{ Math::volume(WORKER_REGION_CACHE_SIZE) };
+
     static constexpr glm::tvec3<Coord> MESH_LOADING_SIZE{
          MESH_LOADING_RADIUS.x * 2 + 1,
          MESH_LOADING_RADIUS.y * 2 + 1,
@@ -62,6 +71,9 @@ namespace cfg {
 
     static constexpr size_t WORKER_THREAD_COUNT{ 4 };
     static_assert(WORKER_THREAD_COUNT < MESH_QUEUE_SIZE_LIMIT, "Becasue ~VoxelContainer().");
+    // TODO: calcualte good value from REGION_SIZE, MESH_LOADING_SIZE, WORKER_THREAD_COUNT, WORKER_REGION_CACHE_VOLUME ...
+    static constexpr size_t REGION_CACHE_SIZE{ 128 };
+    static_assert((WORKER_REGION_CACHE_VOLUME + 2) * WORKER_THREAD_COUNT < REGION_CACHE_SIZE);
 
     static_assert(
         cfg::MESH_LOADING_RADIUS.x >= 0 &&
@@ -88,6 +100,8 @@ namespace cfg {
     static constexpr glm::tvec3<cfg::Coord> CHUNK_MESH_SIZE{ Math::sub(CHUNK_MESH_END, CHUNK_MESH_START) };
     static constexpr Coord CHUNK_MESH_VOLUME{ Math::volume(CHUNK_MESH_SIZE) };
 
+    static constexpr size_t COMPRESS_BUFFER_SIZE_IN_BYTES{ CHUNK_VOLUME * sizeof(Block) * 2 };
+
     static_assert(
         MESH_CHUNK_VOLUME <= 8 &&
         MESH_LOADING_SIZE.x < CHUNK_ARRAY_SIZE.x &&
@@ -104,47 +118,11 @@ namespace cfg {
     );
 
     using RegUint = uint32_t;
+    using RegByte = uint8_t;
 
     // deprecated
     struct Vertex {
         uint8_t vals[8];
     };
-    static constexpr int32_t CHUNK_SIZE_X{ 16 };
-    static constexpr int32_t CHUNK_SIZE_Y{ 16 };
-    static constexpr int32_t CHUNK_SIZE_Z{ 16 };
-
-    static constexpr int32_t REGION_SIZE_X{ 32 };
-    static constexpr int32_t REGION_SIZE_Y{ 32 };
-    static constexpr int32_t REGION_SIZE_Z{ 32 };
-
-    static constexpr int32_t CHUNK_ARRAY_SIZE_X{ 16 };
-    static constexpr int32_t CHUNK_ARRAY_SIZE_Y{ 16 };
-    static constexpr int32_t CHUNK_ARRAY_SIZE_Z{ 16 };
-
-    static constexpr int32_t MESH_SIZE_X{ 16 };
-    static constexpr int32_t MESH_SIZE_Y{ 16 };
-    static constexpr int32_t MESH_SIZE_Z{ 16 };
-
-    static constexpr int32_t MESH_OFFSET_X{ 8 };
-    static constexpr int32_t MESH_OFFSET_Y{ 8 };
-    static constexpr int32_t MESH_OFFSET_Z{ 8 };
-
-    static constexpr int32_t MESH_LOADING_RADIUS_X{ 5 };
-    static constexpr int32_t MESH_LOADING_RADIUS_Y{ 5 };
-    static constexpr int32_t MESH_LOADING_RADIUS_Z{ 5 };
-
-    static constexpr int32_t MESH_ARRAY_SIZE_X{ 16 };
-    static constexpr int32_t MESH_ARRAY_SIZE_Y{ 16 };
-    static constexpr int32_t MESH_ARRAY_SIZE_Z{ 16 };
-
-    static_assert(MESH_LOADING_RADIUS_X * 2 + 1 <= MESH_ARRAY_SIZE_X);
-    static_assert(MESH_LOADING_RADIUS_Y * 2 + 1 <= MESH_ARRAY_SIZE_Y);
-    static_assert(MESH_LOADING_RADIUS_Z * 2 + 1 <= MESH_ARRAY_SIZE_Z);
-
-    //static constexpr int32_t REGION_VOLUME{ REGION_SIZE_X * REGION_SIZE_Y * REGION_SIZE_Z };
-    //static constexpr int32_t CHUNK_VOLUME{ CHUNK_SIZE_X * CHUNK_SIZE_Y * CHUNK_SIZE_Z };
-    //static constexpr int32_t CHUNK_ARRAY_VOLUME{ CHUNK_ARRAY_SIZE_X * CHUNK_ARRAY_SIZE_Y * CHUNK_ARRAY_SIZE_Z };
-    //static constexpr int32_t MESH_ARRAY_VOLUME{ MESH_ARRAY_SIZE_X * MESH_ARRAY_SIZE_Y * MESH_ARRAY_SIZE_Z };
-    //static constexpr int32_t MESH_VOLUME{ MESH_SIZE_X * MESH_SIZE_Y * MESH_SIZE_Z };
 
 }

@@ -37,6 +37,8 @@ set(SOURCE_FILES
     src/Ray.hpp
     src/LineCube.cpp
     src/LineCube.hpp
+    src/RegionContainer.hpp
+    src/RegionContainer.cpp
 )
 
 add_executable(voxel ${SOURCE_FILES})

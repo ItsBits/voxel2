@@ -4,6 +4,17 @@
 #include <array>
 
 namespace Math {
+    template <typename T>
+    struct VecKeyHash {
+    std::size_t operator () (const glm::tvec3<T> & k) const {
+        return k.x * k.y * k.z; // TODO: better hash function
+    }};
+    template <typename T>
+    struct VecKeyEqual {
+    bool operator () (const glm::tvec3<T> & lhs, const glm::tvec3<T> & rhs) const {
+        return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
+    }};
+
     // introduced DumbVec3 because struct { int32_t x, y, z; }; does not work with std::aromic (at least in gcc)
     // and sizeof(T) > 64bit might need mutex anyway
     // this limits the world to 2^21*CHUNK_SIZE.x world width (and so on for other dimensions)
