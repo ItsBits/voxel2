@@ -89,7 +89,8 @@ void VoxelScene::update(const glm::ivec3 & center, LockedQueue<Mesh, cfg::MESH_Q
 
     // upload meshes
     Mesh m;
-    while (queue.pop(std::move(m))) {
+    size_t work_left = cfg::MAX_MESH_UPDATES_PER_FRAME;
+    while (work_left-- > 0 && queue.pop(std::move(m))) {
         ChunkMesh chunk_mesh;
         const size_t vetrex_count = m.mesh.size();
         if (vetrex_count == 0) {

@@ -59,3 +59,15 @@ target_link_libraries(voxel ${ZLIB_LIBRARIES})
 
 # dl needed by gl3w
 target_link_libraries(voxel ${CMAKE_DL_LIBS})
+
+
+# ==============================================================================
+set(SOURCE_FILES_CONVERT
+    convert/main.cpp
+    src/Region.hpp
+    src/Region.cpp
+)
+
+add_executable(convert ${SOURCE_FILES_CONVERT})
+target_link_libraries(convert ${ZLIB_LIBRARIES})
+target_link_libraries(convert pthread)

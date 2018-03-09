@@ -108,7 +108,7 @@ void Region::saveChunk(cfg::RegUint chunk_index, const cfg::Block * chunk) {
     // in case someone already defragmented between garbage.load() and defragment())
     if (garbage.load() >= cfg::DEFRAGMENT_GARBAGE_THRESHOLD)
         defragment();
-    Print("saved :)");
+//    Print("saved :)");
 }
 
 void Region::defragment() {
@@ -186,7 +186,7 @@ bool Region::loadChunk(cfg::RegUint chunk_index, cfg::Block * chunk) {
         // TODO: handle differently?
         if (decompression_result != Z_OK || uncompressed_size != cfg::CHUNK_VOLUME * sizeof(cfg::Block))
             throw std::runtime_error("Broken save file I guess.");
-        Print("loaded :)");
+//        Print("loaded :)");
         return true;
     } else {
         return false;

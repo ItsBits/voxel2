@@ -67,7 +67,7 @@ VoxelContainer::~VoxelContainer() {
             // TODO: check if this is true: m_chunk_dirty does not need to be atomic, because there will be no concurrent access
             //       and it is implicitly synchronized between threads by other atomic variables
             m_chunk_dirty[i] = false;
-            Print("Saving ", glm::to_string(chunk_position));
+//            Print("Saving ", glm::to_string(chunk_position));
         }
     }
 }
@@ -243,7 +243,10 @@ void VoxelContainer::generateMesh(const glm::tvec3<cfg::Coord> & mesh_position, 
                 chunks[j++] = m_blocks.data() + cfg::CHUNK_VOLUME * chunk_index;
             }
     // generate mesh
-    return mesher::mesh<mesher::MesherType::STANDARD>(mesh, chunks);
+//    mesher::mesh<mesher::MesherType::STANDARD>(mesh, chunks);
+//    mesher::mesh<mesher::MesherType::MULTI_PASS>(mesh, chunks);
+//    mesher::mesh<mesher::MesherType::COPY_THEN_MESH>(mesh, chunks);
+    mesher::generic(mesh, chunks);
 }
 
 void VoxelContainer::clearMeshReadines() {
@@ -291,12 +294,12 @@ bool VoxelContainer::checkMeshes(const glm::tvec3<cfg::Coord> & chunk_position) 
 
 void VoxelContainer::generateChunk(cfg::Block * chunk, const glm::tvec3<cfg::Coord> & chunk_position) {
     // TODO: IDEA: second pass: if this is the last neighbour of any chunk that neighbour chunk can do a second loading pass (for more advanced and "non deterministic" world generators)
-    worldgen::generate<worldgen::WorldGenType::STANDARD>(chunk, chunk_position);
+    worldgen::generate<worldgen::WorldGenType::SINE>(chunk, chunk_position);
 }
 
 void VoxelContainer::saveChunk(const cfg::Block * chunk, const glm::tvec3<cfg::Coord> & chunk_position, Region * region) {
     assert(chunk != nullptr && region != nullptr);
-    Print("Save ", glm::to_string(chunk_position));
+//    Print("Save ", glm::to_string(chunk_position));
     region->saveChunk(Math::position_to_index(chunk_position, cfg::REGION_SIZE), chunk);
 }
 

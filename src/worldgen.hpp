@@ -5,7 +5,8 @@
 namespace worldgen {
     enum class WorldGenType {
         STANDARD,
-        AIR
+        AIR,
+        SINE
     };
 
     template <WorldGenType T>

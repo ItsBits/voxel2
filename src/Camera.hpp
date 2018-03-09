@@ -44,7 +44,7 @@ private:
 //==================================================================================================
 template<typename T> const glm::tvec3<T> Camera<T>::WORLD_UP = glm::tvec3<T>{ T{ 0 }, T{ 1 }, T{ 0 } };
 template<typename T> const T Camera<T>::NEAR_VIEW = T{ 0.1L };
-template<typename T> const T Camera<T>::FAR_VIEW = T{ 500 };
+template<typename T> const T Camera<T>::FAR_VIEW = T{ 1000 };
 template<typename T> const T Camera<T>::FOV = T{ 1 };
 
 //==================================================================================================

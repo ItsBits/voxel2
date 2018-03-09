@@ -1,6 +1,6 @@
 #version 330 core
 
-layout(location = 0) out vec4 out_color;
+layout (location = 0) out vec4 outColor;
 
 in vec2 texture_coord;
 in float color;
@@ -19,6 +19,6 @@ void main()
         ao_colors.x, ao_colors.y, ao_colors.z, ao_colors.w,
         texture_coord.s, texture_coord.t
     );
-
-    out_color = vec4(vec3(color) * interpolated_shade, 1.0f);
+    
+    outColor = vec4(vec3(color) * interpolated_shade, 1.0f);
 }

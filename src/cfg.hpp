@@ -10,6 +10,8 @@ namespace cfg {
     using Block = uint8_t;
     using Coord = int32_t;
 
+    static constexpr size_t MAX_MESH_UPDATES_PER_FRAME{ 32 };
+
     // when generating will always produce same chunk and generating is very cheap
     // like worldgen::WorldGenType::AIR, this can be set to false to save disk space
     static constexpr bool SAVE_NEWLY_GENERATED_CHUNKS{ true };
@@ -21,14 +23,14 @@ namespace cfg {
 
     // TODO: static asserts to check for sane and valid values
     // most must be > 1
-    static constexpr glm::tvec3<Coord> CHUNK_SIZE{ 16, 16, 16 };
+    static constexpr glm::tvec3<Coord> CHUNK_SIZE{ 32, 32, 32 };
     static constexpr glm::tvec3<Coord> CHUNK_ARRAY_SIZE{ 32, 16, 32 };
-    static constexpr glm::tvec3<Coord> MESH_SIZE{ 16, 16, 16 };
+    static constexpr glm::tvec3<Coord> MESH_SIZE{ 32, 32, 32 };
     static constexpr glm::tvec3<Coord> MESH_ARRAY_SIZE{ 32, 16, 32 };
-    static constexpr glm::tvec3<Coord> REGION_SIZE{ 32, 32, 32 };
+    static constexpr glm::tvec3<Coord> REGION_SIZE{ 16, 16, 16 };
 
-    static constexpr glm::tvec3<Coord> MESH_OFFSET{ 8, 8, 8 }; // TODO: MESH_SIZE / 2
-    static constexpr glm::tvec3<Coord> MESH_LOADING_RADIUS{ 14, 6, 14 };
+    static constexpr glm::tvec3<Coord> MESH_OFFSET{ MESH_SIZE.x / 2, MESH_SIZE.y / 2, MESH_SIZE.z / 2 };
+    static constexpr glm::tvec3<Coord> MESH_LOADING_RADIUS{ 8, 5, 8 };
 
     static constexpr glm::tvec3<Coord> BLOCK_MESH_EFFECT_RADIUS{ 1, 1, 1 };
 

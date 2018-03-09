@@ -58,3 +58,19 @@ void worldgen::generate<worldgen::WorldGenType::AIR>(
                 chunk[index] = 0;
             }
 }
+
+template <>
+void worldgen::generate<worldgen::WorldGenType::SINE>(
+    cfg::Block * chunk, const glm::tvec3<cfg::Coord> & chunk_position
+) {
+    glm::tvec3<cfg::Coord> i;
+    const glm::tvec3<cfg::Coord> fr{ chunk_position * cfg::CHUNK_SIZE };
+    const glm::tvec3<cfg::Coord> to{ fr + cfg::CHUNK_SIZE };
+    for (i.z = fr.z; i.z < to.z; ++i.z)
+        for (i.y = fr.y; i.y < to.y; ++i.y)
+            for (i.x = fr.x; i.x < to.x; ++i.x) {
+                const auto index = Math::position_to_index(i, cfg::CHUNK_SIZE);
+                const auto set = std::sin(i.x * 0.1) * std::sin(i.z * 0.1) * 10.0 > static_cast<double>(i.y);
+                chunk[index] = set ? ((std::rand() % (std::numeric_limits<cfg::Block>::max() - 5)) + 1) : 0;
+            }
+}

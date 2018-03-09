@@ -1,7 +1,54 @@
 * loading from network
 * cool world generator
 * make cmake more portable
+* deferred shading and post processing
 * textures
 * bulk mesh update to prevent artefacts like holes
 * improve std::vector<cfg::Vertex> storage allocation strategy
 * limit the chunk iterator reset rate to prevent a livelock
+* try triangle instead of quad and somehow cull the rest:
+
+from
+____
+|  |
+|  |
+----
+
+to
+________
+|   :  /
+|...:/
+|  /
+|/
+
+
+* check if this works:
+reduce N^3 to 3*N in mesh generation block lookup count
+
+works in 2D:
+
+bitfield:
+012345678
+
+in 2d:
+012
+345
+678
+
++y
+^
+|
+L---> +x
+
+x-pass:
+is1 = block[x, y + 1] != empty
+is2 = block[x, y - 1] != empty
+isx = block[x, y    ] != empty
+outa = (is1 << 1) | (is2 << 7) | (isx << 4)
+
+y-pass:
+is1 = outa[x - 1, y]
+is2 = outa[x + 1, y]
+isy = outa[x    , y]
+result = isy | (is1 >> 1) | (is2 << 1)
+
