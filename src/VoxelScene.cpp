@@ -137,12 +137,18 @@ void VoxelScene::draw(GLint offset_uniform, const std::array<glm::vec4, 6> & pla
     static const float MESH_RADIUS{ glm::length(glm::vec3{ cfg::MESH_SIZE } / 2.0f) };
     auto s = m_meshes.size();
     offset_offset += cfg::MESH_OFFSET;
+
+    Math::AABB3<float> camera_range;
+    camera_range.min = -cfg::MESH_LOADING_RADIUS * cfg::MESH_SIZE;
+    camera_range.max =  cfg::MESH_LOADING_RADIUS * cfg::MESH_SIZE;
+
     for (const auto & m : m_meshes) {
         if (m.second.element_count <= 0)
             continue;
         const auto offset = m.first * cfg::MESH_SIZE + offset_offset;
         const glm::vec3 center = glm::vec3{ offset } + glm::vec3{ cfg::MESH_SIZE } / 2.0f;
-
+        if (!Math::inside(camera_range, center))
+            continue;
         if (!Math::sphereInFrustum(planes, center, MESH_RADIUS))
             continue;
         glUniform3f(offset_uniform, offset.x, offset.y, offset.z);
