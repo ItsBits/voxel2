@@ -2,6 +2,8 @@
 
 #include <glm/glm.hpp>
 #include <array>
+#include <vector>
+#include "Print.hpp"
 
 namespace Math {
     template <typename T>
@@ -170,6 +172,34 @@ namespace Math {
             static_cast<std::uint8_t>(side_a) +
             static_cast<std::uint8_t>(side_b) +
             static_cast<std::uint8_t>(corner);
+    }
+
+    inline uint8_t vertexAOInv(bool side_a, bool side_b, bool corner) {
+        if (side_a && side_b) return 1;
+        return !side_a + !side_b + !corner + 1;
+    }
+
+    inline std::uint8_t vertexAO2(
+        const bool side_a, const bool side_b, const bool corner,
+        const bool side_a_l, const bool side_b_l, const bool corner_l
+    ) {
+        uint8_t as = !side_a ? !side_a + !side_a_l : 0;
+        uint8_t bs = !side_b ? !side_b + !side_b_l : 0;
+        uint8_t cs = !corner ? !corner + !corner_l : 0;
+
+        uint8_t result = 0;
+        if (side_a && side_b) result = 0;
+        else result = as + bs + cs;
+
+#if 0
+        return 6 - result;
+#else
+        // clamp scale translate
+        result = 6 - result;
+        if (result < 3) result = 3;
+        result -= 3;
+        return result * 2;
+#endif
     }
 
     template <typename T>

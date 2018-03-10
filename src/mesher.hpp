@@ -5,6 +5,11 @@
 #include "cfg.hpp"
 #include <chrono>
 
+
+#define NORMALIZED_INDICES
+#define CALCULATE_AO
+// #define ADJUST_AO // forget about that
+
 namespace mesher {
     // TODO: add NO_AO option to meshers
     enum class MesherType {
@@ -17,6 +22,7 @@ namespace mesher {
         INDEX_LOOKUP_TABLE_UNROLL,
         INDEX_LOOKUP_TABLE_UNROLL_SEMI,
         INDEX_LOOKUP_TABLE_UNROLL_SEMI_NO_LAMBDA,
+        ADVANCED_AO,
         ITERATE_1D_ARRAY, // TODO: implement
         INDEX_QUADS, // TODO: implement (each block stores index to quad in mesh, this is adjusted when mesh modified (remove->allbigger--, add->allbigger++))
         SPARSE_MAP // WILL USE A LOT OF EXTRA MEMORY but it is O(1) for all needed operations
@@ -33,5 +39,7 @@ namespace mesher {
         std::vector<cfg::Vertex> & out_mesh,
         const std::array<cfg::Block *, cfg::MESH_CHUNK_VOLUME> & chunks
     );
+
+    void adjustAO(std::vector<cfg::Vertex> & mesh);
 
 }

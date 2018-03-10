@@ -2,14 +2,140 @@
 #include "Math.hpp"
 #include <glm/glm.hpp>
 #include "Print.hpp"
+#include <unordered_map>
+#include <glm/gtx/hash.hpp>
+
+static constexpr std::uint8_t SHADOW_STRENGTH{ 63 };
+
+template <>
+void mesher::mesh<mesher::MesherType::ADVANCED_AO>(
+    std::vector<cfg::Vertex> & mesh,
+    const std::array<cfg::Block *, cfg::MESH_CHUNK_VOLUME> & chunks
+) {
+    static constexpr glm::tvec3<cfg::Coord> DIM{ Math::add(cfg::MESH_SIZE, 2) };
+    static constexpr glm::tvec3<cfg::Coord> FR{ cfg::MESH_OFFSET };
+    static constexpr glm::tvec3<cfg::Coord> TO{ Math::add(FR, cfg::MESH_SIZE) };
+    static constexpr glm::tvec3<cfg::Coord> OFFSET{ 1, 1, 1 };
+
+    static constexpr std::array<int32_t, 6> NEIGHBOUR_OFFSETS{ {
+        Math::to_index({ -1,  0,  0 }, DIM), Math::to_index({  1,  0,  0 }, DIM),
+        Math::to_index({  0, -1,  0 }, DIM), Math::to_index({  0,  1,  0 }, DIM),
+        Math::to_index({  0,  0, -1 }, DIM), Math::to_index({  0,  0,  1 }, DIM),
+    } };
+
+    static constexpr std::array<std::array<glm::tvec3<uint8_t>, 4>, 6> QUAD_VERTEX_OFFSETS{ {
+        { { { 0, 0, 0 }, { 0, 0, 1 }, { 0, 1, 1 }, { 0, 1, 0 } } },
+        { { { 1, 0, 0 }, { 1, 1, 0 }, { 1, 1, 1 }, { 1, 0, 1 } } },
+
+        { { { 0, 0, 0 }, { 1, 0, 0 }, { 1, 0, 1 }, { 0, 0, 1 } } },
+        { { { 0, 1, 0 }, { 0, 1, 1 }, { 1, 1, 1 }, { 1, 1, 0 } } },
+
+        { { { 0, 0, 0 }, { 0, 1, 0 }, { 1, 1, 0 }, { 1, 0, 0 } } },
+        { { { 0, 0, 1 }, { 1, 0, 1 }, { 1, 1, 1 }, { 0, 1, 1 } } },
+    } };
+
+    static constexpr std::array<std::array<int32_t, 16>, 6> AOS_OFFSETS{ {
+        { { Math::to_index({ -1, -1, -1 }, DIM), Math::to_index({ -1,  0, -1 }, DIM), Math::to_index({ -1,  1, -1 }, DIM), Math::to_index({ -1, -1,  0 }, DIM), Math::to_index({ -1,  1,  0 }, DIM), Math::to_index({ -1, -1,  1 }, DIM), Math::to_index({ -1,  0,  1 }, DIM), Math::to_index({ -1,  1,  1 }, DIM),
+            Math::to_index({  0, -1, -1 }, DIM), Math::to_index({  0,  0, -1 }, DIM), Math::to_index({  0,  1, -1 }, DIM), Math::to_index({  0, -1,  0 }, DIM), Math::to_index({  0,  1,  0 }, DIM), Math::to_index({  0, -1,  1 }, DIM), Math::to_index({  0,  0,  1 }, DIM), Math::to_index({  0,  1,  1 }, DIM) } },
+
+        { { Math::to_index({  1, -1, -1 }, DIM), Math::to_index({  1,  0, -1 }, DIM), Math::to_index({  1,  1, -1 }, DIM), Math::to_index({  1, -1,  0 }, DIM), Math::to_index({  1,  1,  0 }, DIM), Math::to_index({  1, -1,  1 }, DIM), Math::to_index({  1,  0,  1 }, DIM), Math::to_index({  1,  1,  1 }, DIM),
+            Math::to_index({  0, -1, -1 }, DIM), Math::to_index({  0,  0, -1 }, DIM), Math::to_index({  0,  1, -1 }, DIM), Math::to_index({  0, -1,  0 }, DIM), Math::to_index({  0,  1,  0 }, DIM), Math::to_index({  0, -1,  1 }, DIM), Math::to_index({  0,  0,  1 }, DIM), Math::to_index({  0,  1,  1 }, DIM) } },
+
+        { { Math::to_index({ -1, -1, -1 }, DIM), Math::to_index({  0, -1, -1 }, DIM), Math::to_index({  1, -1, -1 }, DIM), Math::to_index({ -1, -1,  0 }, DIM), Math::to_index({  1, -1,  0 }, DIM), Math::to_index({ -1, -1,  1 }, DIM), Math::to_index({  0, -1,  1 }, DIM), Math::to_index({  1, -1,  1 }, DIM),
+            Math::to_index({ -1,  0, -1 }, DIM), Math::to_index({  0,  0, -1 }, DIM), Math::to_index({  1,  0, -1 }, DIM), Math::to_index({ -1,  0,  0 }, DIM), Math::to_index({  1,  0,  0 }, DIM), Math::to_index({ -1,  0,  1 }, DIM), Math::to_index({  0,  0,  1 }, DIM), Math::to_index({  1,  0,  1 }, DIM) } },
+
+        { { Math::to_index({ -1,  1, -1 }, DIM), Math::to_index({  0,  1, -1 }, DIM), Math::to_index({  1,  1, -1 }, DIM), Math::to_index({ -1,  1,  0 }, DIM), Math::to_index({  1,  1,  0 }, DIM), Math::to_index({ -1,  1,  1 }, DIM), Math::to_index({  0,  1,  1 }, DIM), Math::to_index({  1,  1,  1 }, DIM),
+            Math::to_index({ -1,  0, -1 }, DIM), Math::to_index({  0,  0, -1 }, DIM), Math::to_index({  1,  0, -1 }, DIM), Math::to_index({ -1,  0,  0 }, DIM), Math::to_index({  1,  0,  0 }, DIM), Math::to_index({ -1,  0,  1 }, DIM), Math::to_index({  0,  0,  1 }, DIM), Math::to_index({  1,  0,  1 }, DIM) } },
+
+        { { Math::to_index({ -1, -1, -1 }, DIM), Math::to_index({  0, -1, -1 }, DIM), Math::to_index({  1, -1, -1 }, DIM), Math::to_index({ -1,  0, -1 }, DIM), Math::to_index({  1,  0, -1 }, DIM), Math::to_index({ -1,  1, -1 }, DIM), Math::to_index({  0,  1, -1 }, DIM), Math::to_index({  1,  1, -1 }, DIM),
+            Math::to_index({ -1, -1,  0 }, DIM), Math::to_index({  0, -1,  0 }, DIM), Math::to_index({  1, -1,  0 }, DIM), Math::to_index({ -1,  0,  0 }, DIM), Math::to_index({  1,  0,  0 }, DIM), Math::to_index({ -1,  1,  0 }, DIM), Math::to_index({  0,  1,  0 }, DIM), Math::to_index({  1,  1,  0 }, DIM) } },
+
+        { { Math::to_index({ -1, -1,  1 }, DIM), Math::to_index({  0, -1,  1 }, DIM), Math::to_index({  1, -1,  1 }, DIM), Math::to_index({ -1,  0,  1 }, DIM), Math::to_index({  1,  0,  1 }, DIM), Math::to_index({ -1,  1,  1 }, DIM), Math::to_index({  0,  1,  1 }, DIM), Math::to_index({  1,  1,  1 }, DIM),
+            Math::to_index({ -1, -1,  0 }, DIM), Math::to_index({  0, -1,  0 }, DIM), Math::to_index({  1, -1,  0 }, DIM), Math::to_index({ -1,  0,  0 }, DIM), Math::to_index({  1,  0,  0 }, DIM), Math::to_index({ -1,  1,  0 }, DIM), Math::to_index({  0,  1,  0 }, DIM), Math::to_index({  1,  1,  0 }, DIM) } },
+    } };
+
+    static constexpr std::array<std::array<glm::tvec3<uint8_t>, 4>, 6> AO_OFFSETS{ {
+        { { { 1, 3, 0 }, { 1, 4, 2 }, { 3, 6, 5 }, { 4, 6, 7 } } },
+        { { { 1, 3, 0 }, { 3, 6, 5 }, { 1, 4, 2 }, { 4, 6, 7 } } },
+
+        { { { 1, 3, 0 }, { 3, 6, 5 }, { 1, 4, 2 }, { 4, 6, 7 } } },
+        { { { 1, 3, 0 }, { 1, 4, 2 }, { 3, 6, 5 }, { 4, 6, 7 } } },
+
+        { { { 1, 3, 0 }, { 1, 4, 2 }, { 3, 6, 5 }, { 4, 6, 7 } } },
+        { { { 1, 3, 0 }, { 3, 6, 5 }, { 1, 4, 2 }, { 4, 6, 7 } } },
+    } };
+
+    mesh.clear();
+    mesh.reserve(1024 * 1024); // whatever
+    
+    std::vector<cfg::Block> chunk;
+    chunk.reserve(Math::volume(DIM));
+
+    glm::tvec3<cfg::Coord> i;
+    for (i.z = FR.z - 1; i.z < TO.z + 1; ++i.z)
+        for (i.y = FR.y - 1; i.y < TO.y + 1; ++i.y)
+            for (i.x = FR.x - 1; i.x < TO.x + 1; ++i.x) {
+                const auto chunk_position = Math::floor_div(i, cfg::CHUNK_SIZE);
+                const auto block_index = Math::position_to_index(i, cfg::CHUNK_SIZE);
+                const auto chunk_index = Math::position_to_index(chunk_position, cfg::MESH_CHUNK_SIZE);
+                chunk.push_back(chunks[chunk_index][block_index]);
+            }
+
+    int32_t block_index = DIM.y * DIM.x + DIM.x + 1;
+    for (i.z = 1; i.z < cfg::MESH_SIZE.z + 1; ++i.z)
+        for (i.y = 1; i.y < cfg::MESH_SIZE.y + 1; ++i.y)
+            for (i.x = 1; i.x < cfg::MESH_SIZE.x + 1; ++i.x) {
+                const int32_t block_index = Math::to_index(i, DIM);
+                const auto block = chunk[block_index];
+                if (block == cfg::Block{ 0 })
+                    continue;
+
+                // trick compiler into unrolling the loop AND inlining constexpr values
+                #define PROCESS_SIDE(SIDE_INDEX)                                                                                                                                                                                                                                                                                                  \
+                    if (chunk[block_index + NEIGHBOUR_OFFSETS[SIDE_INDEX]] == cfg::Block{ 0 }) {                                                                                                                                                                                                                                                  \
+                        std::array<bool, 16> aos;                                                                                                                                                                                                                                                                                                 \
+                        aos[0]  = chunk[block_index + AOS_OFFSETS[SIDE_INDEX][0]]  != cfg::Block{ 0 };                                                                                                                                                                                                                                            \
+                        aos[1]  = chunk[block_index + AOS_OFFSETS[SIDE_INDEX][1]]  != cfg::Block{ 0 };                                                                                                                                                                                                                                            \
+                        aos[2]  = chunk[block_index + AOS_OFFSETS[SIDE_INDEX][2]]  != cfg::Block{ 0 };                                                                                                                                                                                                                                            \
+                        aos[3]  = chunk[block_index + AOS_OFFSETS[SIDE_INDEX][3]]  != cfg::Block{ 0 };                                                                                                                                                                                                                                            \
+                        aos[4]  = chunk[block_index + AOS_OFFSETS[SIDE_INDEX][4]]  != cfg::Block{ 0 };                                                                                                                                                                                                                                            \
+                        aos[5]  = chunk[block_index + AOS_OFFSETS[SIDE_INDEX][5]]  != cfg::Block{ 0 };                                                                                                                                                                                                                                            \
+                        aos[6]  = chunk[block_index + AOS_OFFSETS[SIDE_INDEX][6]]  != cfg::Block{ 0 };                                                                                                                                                                                                                                            \
+                        aos[7]  = chunk[block_index + AOS_OFFSETS[SIDE_INDEX][7]]  != cfg::Block{ 0 };                                                                                                                                                                                                                                            \
+                        aos[8]  = chunk[block_index + AOS_OFFSETS[SIDE_INDEX][8]]  != cfg::Block{ 0 };                                                                                                                                                                                                                                            \
+                        aos[9]  = chunk[block_index + AOS_OFFSETS[SIDE_INDEX][9]]  != cfg::Block{ 0 };                                                                                                                                                                                                                                            \
+                        aos[10] = chunk[block_index + AOS_OFFSETS[SIDE_INDEX][10]] != cfg::Block{ 0 };                                                                                                                                                                                                                                            \
+                        aos[11] = chunk[block_index + AOS_OFFSETS[SIDE_INDEX][11]] != cfg::Block{ 0 };                                                                                                                                                                                                                                            \
+                        aos[12] = chunk[block_index + AOS_OFFSETS[SIDE_INDEX][12]] != cfg::Block{ 0 };                                                                                                                                                                                                                                            \
+                        aos[13] = chunk[block_index + AOS_OFFSETS[SIDE_INDEX][13]] != cfg::Block{ 0 };                                                                                                                                                                                                                                            \
+                        aos[14] = chunk[block_index + AOS_OFFSETS[SIDE_INDEX][14]] != cfg::Block{ 0 };                                                                                                                                                                                                                                            \
+                        aos[15] = chunk[block_index + AOS_OFFSETS[SIDE_INDEX][15]] != cfg::Block{ 0 };                                                                                                                                                                                                                                            \
+                        std::array<uint8_t, 4> ao;                                                                                                                                                                                                                                                                                                \
+                        ao[0] = std::numeric_limits<std::uint8_t>::max() - (SHADOW_STRENGTH / 2) * Math::vertexAO2(aos[AO_OFFSETS[SIDE_INDEX][0][0]], aos[AO_OFFSETS[SIDE_INDEX][0][1]], aos[AO_OFFSETS[SIDE_INDEX][0][2]], aos[AO_OFFSETS[SIDE_INDEX][0][0] + 8], aos[AO_OFFSETS[SIDE_INDEX][0][1] + 8], aos[AO_OFFSETS[SIDE_INDEX][0][2] + 8]); \
+                        ao[1] = std::numeric_limits<std::uint8_t>::max() - (SHADOW_STRENGTH / 2) * Math::vertexAO2(aos[AO_OFFSETS[SIDE_INDEX][1][0]], aos[AO_OFFSETS[SIDE_INDEX][1][1]], aos[AO_OFFSETS[SIDE_INDEX][1][2]], aos[AO_OFFSETS[SIDE_INDEX][1][0] + 8], aos[AO_OFFSETS[SIDE_INDEX][1][1] + 8], aos[AO_OFFSETS[SIDE_INDEX][1][2] + 8]); \
+                        ao[2] = std::numeric_limits<std::uint8_t>::max() - (SHADOW_STRENGTH / 2) * Math::vertexAO2(aos[AO_OFFSETS[SIDE_INDEX][2][0]], aos[AO_OFFSETS[SIDE_INDEX][2][1]], aos[AO_OFFSETS[SIDE_INDEX][2][2]], aos[AO_OFFSETS[SIDE_INDEX][2][0] + 8], aos[AO_OFFSETS[SIDE_INDEX][2][1] + 8], aos[AO_OFFSETS[SIDE_INDEX][2][2] + 8]); \
+                        ao[3] = std::numeric_limits<std::uint8_t>::max() - (SHADOW_STRENGTH / 2) * Math::vertexAO2(aos[AO_OFFSETS[SIDE_INDEX][3][0]], aos[AO_OFFSETS[SIDE_INDEX][3][1]], aos[AO_OFFSETS[SIDE_INDEX][3][2]], aos[AO_OFFSETS[SIDE_INDEX][3][0] + 8], aos[AO_OFFSETS[SIDE_INDEX][3][1] + 8], aos[AO_OFFSETS[SIDE_INDEX][3][2] + 8]); \
+                        const auto vertex_position = glm::tvec3<uint8_t>{ i - OFFSET };                                                                                                                                                                                                                                                           \
+                        mesh.push_back({ uint8_t(vertex_position.x + QUAD_VERTEX_OFFSETS[SIDE_INDEX][0].x), uint8_t(vertex_position.y + QUAD_VERTEX_OFFSETS[SIDE_INDEX][0].y), uint8_t(vertex_position.z + QUAD_VERTEX_OFFSETS[SIDE_INDEX][0].z), block, ao[0], ao[1], ao[2], ao[3] });                                                           \
+                        mesh.push_back({ uint8_t(vertex_position.x + QUAD_VERTEX_OFFSETS[SIDE_INDEX][1].x), uint8_t(vertex_position.y + QUAD_VERTEX_OFFSETS[SIDE_INDEX][1].y), uint8_t(vertex_position.z + QUAD_VERTEX_OFFSETS[SIDE_INDEX][1].z), block, ao[0], ao[1], ao[2], ao[3] });                                                           \
+                        mesh.push_back({ uint8_t(vertex_position.x + QUAD_VERTEX_OFFSETS[SIDE_INDEX][2].x), uint8_t(vertex_position.y + QUAD_VERTEX_OFFSETS[SIDE_INDEX][2].y), uint8_t(vertex_position.z + QUAD_VERTEX_OFFSETS[SIDE_INDEX][2].z), block, ao[0], ao[1], ao[2], ao[3] });                                                           \
+                        mesh.push_back({ uint8_t(vertex_position.x + QUAD_VERTEX_OFFSETS[SIDE_INDEX][3].x), uint8_t(vertex_position.y + QUAD_VERTEX_OFFSETS[SIDE_INDEX][3].y), uint8_t(vertex_position.z + QUAD_VERTEX_OFFSETS[SIDE_INDEX][3].z), block, ao[0], ao[1], ao[2], ao[3] });                                                           \
+                    }
+                    PROCESS_SIDE(0)
+                    PROCESS_SIDE(1)
+                    PROCESS_SIDE(2)
+                    PROCESS_SIDE(3)
+                    PROCESS_SIDE(4)
+                    PROCESS_SIDE(5)
+                #undef PROCESS_SIDE
+            }
+}
 
 template <>
 void mesher::mesh<mesher::MesherType::INDEX_LOOKUP_TABLE_UNROLL_SEMI_NO_LAMBDA>(
     std::vector<cfg::Vertex> & mesh,
     const std::array<cfg::Block *, cfg::MESH_CHUNK_VOLUME> & chunks
 ) {
-    constexpr std::uint8_t SHADOW_STRENGTH{ 60 };
-
     static constexpr glm::tvec3<cfg::Coord> DIM{ Math::add(cfg::MESH_SIZE, 2) };
     static constexpr glm::tvec3<cfg::Coord> FR{ cfg::MESH_OFFSET };
     static constexpr glm::tvec3<cfg::Coord> TO{ Math::add(FR, cfg::MESH_SIZE) };
@@ -92,10 +218,10 @@ void mesher::mesh<mesher::MesherType::INDEX_LOOKUP_TABLE_UNROLL_SEMI_NO_LAMBDA>(
                         aos[6] = chunk[block_index + AOS_OFFSETS[SIDE_INDEX][6]] != cfg::Block{ 0 };                                                                                                                                                                                    \
                         aos[7] = chunk[block_index + AOS_OFFSETS[SIDE_INDEX][7]] != cfg::Block{ 0 };                                                                                                                                                                                    \
                         std::array<uint8_t, 4> ao;                                                                                                                                                                                                                                      \
-                        ao[0] = std::numeric_limits<std::uint8_t>::max() - SHADOW_STRENGTH * Math::vertexAO(aos[AO_OFFSETS[SIDE_INDEX][0][0]], aos[AO_OFFSETS[SIDE_INDEX][0][1]], aos[AO_OFFSETS[SIDE_INDEX][0][2]]);                                                                   \
-                        ao[1] = std::numeric_limits<std::uint8_t>::max() - SHADOW_STRENGTH * Math::vertexAO(aos[AO_OFFSETS[SIDE_INDEX][1][0]], aos[AO_OFFSETS[SIDE_INDEX][1][1]], aos[AO_OFFSETS[SIDE_INDEX][1][2]]);                                                                   \
-                        ao[2] = std::numeric_limits<std::uint8_t>::max() - SHADOW_STRENGTH * Math::vertexAO(aos[AO_OFFSETS[SIDE_INDEX][2][0]], aos[AO_OFFSETS[SIDE_INDEX][2][1]], aos[AO_OFFSETS[SIDE_INDEX][2][2]]);                                                                   \
-                        ao[3] = std::numeric_limits<std::uint8_t>::max() - SHADOW_STRENGTH * Math::vertexAO(aos[AO_OFFSETS[SIDE_INDEX][3][0]], aos[AO_OFFSETS[SIDE_INDEX][3][1]], aos[AO_OFFSETS[SIDE_INDEX][3][2]]);                                                                   \
+                        ao[0] = SHADOW_STRENGTH * Math::vertexAOInv(aos[AO_OFFSETS[SIDE_INDEX][0][0]], aos[AO_OFFSETS[SIDE_INDEX][0][1]], aos[AO_OFFSETS[SIDE_INDEX][0][2]]);                                                                                                           \
+                        ao[1] = SHADOW_STRENGTH * Math::vertexAOInv(aos[AO_OFFSETS[SIDE_INDEX][1][0]], aos[AO_OFFSETS[SIDE_INDEX][1][1]], aos[AO_OFFSETS[SIDE_INDEX][1][2]]);                                                                                                           \
+                        ao[2] = SHADOW_STRENGTH * Math::vertexAOInv(aos[AO_OFFSETS[SIDE_INDEX][2][0]], aos[AO_OFFSETS[SIDE_INDEX][2][1]], aos[AO_OFFSETS[SIDE_INDEX][2][2]]);                                                                                                           \
+                        ao[3] = SHADOW_STRENGTH * Math::vertexAOInv(aos[AO_OFFSETS[SIDE_INDEX][3][0]], aos[AO_OFFSETS[SIDE_INDEX][3][1]], aos[AO_OFFSETS[SIDE_INDEX][3][2]]);                                                                                                           \
                         const auto vertex_position = glm::tvec3<uint8_t>{ i - OFFSET };                                                                                                                                                                                                 \
                         mesh.push_back({ uint8_t(vertex_position.x + QUAD_VERTEX_OFFSETS[SIDE_INDEX][0].x), uint8_t(vertex_position.y + QUAD_VERTEX_OFFSETS[SIDE_INDEX][0].y), uint8_t(vertex_position.z + QUAD_VERTEX_OFFSETS[SIDE_INDEX][0].z), block, ao[0], ao[1], ao[2], ao[3] }); \
                         mesh.push_back({ uint8_t(vertex_position.x + QUAD_VERTEX_OFFSETS[SIDE_INDEX][1].x), uint8_t(vertex_position.y + QUAD_VERTEX_OFFSETS[SIDE_INDEX][1].y), uint8_t(vertex_position.z + QUAD_VERTEX_OFFSETS[SIDE_INDEX][1].z), block, ao[0], ao[1], ao[2], ao[3] }); \
@@ -117,7 +243,6 @@ void mesher::mesh<mesher::MesherType::INDEX_LOOKUP_TABLE_UNROLL_SEMI>(
     std::vector<cfg::Vertex> & mesh,
     const std::array<cfg::Block *, cfg::MESH_CHUNK_VOLUME> & chunks
 ) {
-    constexpr std::uint8_t SHADOW_STRENGTH{ 60 };
     mesh.clear();
     mesh.reserve(1024 * 1024); // whatever
 
@@ -237,7 +362,6 @@ void mesher::mesh<mesher::MesherType::INDEX_LOOKUP_TABLE_UNROLL>(
     std::vector<cfg::Vertex> & mesh,
     const std::array<cfg::Block *, cfg::MESH_CHUNK_VOLUME> & chunks
 ) {
-    constexpr std::uint8_t SHADOW_STRENGTH{ 60 };
     mesh.clear();
     mesh.reserve(1024 * 1024); // whatever
 
@@ -469,7 +593,6 @@ void mesher::mesh<mesher::MesherType::INDEX_LOOKUP_TABLE>(
     std::vector<cfg::Vertex> & mesh,
     const std::array<cfg::Block *, cfg::MESH_CHUNK_VOLUME> & chunks
 ) {
-    constexpr std::uint8_t SHADOW_STRENGTH{ 60 };
     mesh.clear();
     mesh.reserve(1024 * 1024); // whatever
 
@@ -572,14 +695,11 @@ void mesher::mesh<mesher::MesherType::INDEX_LOOKUP_TABLE>(
             }
 }
 
-#define NORMALIZED_INDICES
-#define CALCULATE_AO
 template <>
 void mesher::mesh<mesher::MesherType::VECTOR_LOOKUP_TABLE>(
     std::vector<cfg::Vertex> & mesh,
     const std::array<cfg::Block *, cfg::MESH_CHUNK_VOLUME> & chunks
 ) {
-    constexpr std::uint8_t SHADOW_STRENGTH{ 60 };
     mesh.clear();
     mesh.reserve(1024 * 1024); // whatever
 
@@ -724,7 +844,6 @@ void mesher::mesh<mesher::MesherType::HISTO_PYRAMID>(
     std::vector<cfg::Vertex> & mesh,
     const std::array<cfg::Block *, cfg::MESH_CHUNK_VOLUME> & chunks
 ) {
-    constexpr std::uint8_t SHADOW_STRENGTH{ 60 };
     mesh.clear();
     mesh.reserve(1024 * 1024); // whatever
 
@@ -1018,7 +1137,6 @@ void mesher::mesh<mesher::MesherType::MULTI_PASS>(
     std::vector<cfg::Vertex> & mesh,
     const std::array<cfg::Block *, cfg::MESH_CHUNK_VOLUME> & chunks
 ) {
-    constexpr std::uint8_t SHADOW_STRENGTH{ 60 };
     mesh.clear();
     mesh.reserve(1024 * 1024); // whatever
 
@@ -1294,7 +1412,6 @@ void mesher::mesh<mesher::MesherType::COPY_THEN_MESH>(
     std::vector<cfg::Vertex> & mesh,
     const std::array<cfg::Block *, cfg::MESH_CHUNK_VOLUME> & chunks
 ) {
-    constexpr std::uint8_t SHADOW_STRENGTH{ 60 };
     mesh.clear();
     mesh.reserve(1024 * 1024); // whatever
 
@@ -1543,8 +1660,6 @@ void mesher::mesh<mesher::MesherType::STANDARD>(
         return chunks[chunk_index][block_index];
     };
 
-    constexpr std::uint8_t SHADOW_STRENGTH{ 60 };
-
     mesh.clear();
     mesh.reserve(1024 * 1024); // whatever
 
@@ -1753,8 +1868,6 @@ void mesher::mesh<mesher::MesherType::STANDARD>(
             }
 }
 
-
-    
 void mesher::generic(
     std::vector<cfg::Vertex> & out_mesh,
     const std::array<cfg::Block *, cfg::MESH_CHUNK_VOLUME> & chunks
@@ -1764,8 +1877,8 @@ void mesher::generic(
 //        mesh<MesherType::STANDARD>,
 //        mesh<MesherType::COPY_THEN_MESH>,
 //        mesh<MesherType::INDEX_LOOKUP_TABLE>,
-//        mesh<MesherType::INDEX_LOOKUP_TABLE_UNROLL>,
         mesh<MesherType::INDEX_LOOKUP_TABLE_UNROLL_SEMI_NO_LAMBDA>,
+//        mesh<MesherType::ADVANCED_AO>,
     };
 
     struct Results {
@@ -1793,5 +1906,16 @@ void mesher::generic(
     Print(result_string);
 */
 //    out_mesh = std::move(results[std::rand() % results.size()].mesh);
-    out_mesh = std::move(results.back().mesh);
+
+    auto & result_mesh = results.back().mesh;
+
+#ifdef ADJUST_AO
+    adjustAO(result_mesh);
+#endif
+
+    out_mesh = std::move(result_mesh);
+}
+
+void mesher::adjustAO(std::vector<cfg::Vertex> & mesh) {
+
 }

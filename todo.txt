@@ -1,3 +1,4 @@
+* region defragmentation
 * loading from network
 * cool world generator
 * make cmake more portable
