@@ -22,6 +22,7 @@ namespace mesher {
         INDEX_LOOKUP_TABLE_UNROLL,
         INDEX_LOOKUP_TABLE_UNROLL_SEMI,
         INDEX_LOOKUP_TABLE_UNROLL_SEMI_NO_LAMBDA,
+        INDEX_LOOKUP_TABLE_UNROLL_SEMI_NO_LAMBDA_BETTER_COPY,
         ADVANCED_AO,
         ITERATE_1D_ARRAY, // TODO: implement
         INDEX_QUADS, // TODO: implement (each block stores index to quad in mesh, this is adjusted when mesh modified (remove->allbigger--, add->allbigger++))

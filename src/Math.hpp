@@ -136,11 +136,29 @@ namespace Math {
     }
 
     template <typename T>
+    constexpr glm::tvec3<T> floor_div_unsigned(const glm::tvec3<T> & a, const glm::tvec3<T> & b) {
+        return {
+            a.x / b.x,
+            a.y / b.y,
+            a.z / b.z
+        };
+    }
+
+    template <typename T>
     constexpr glm::tvec3<T> floor_mod(const glm::tvec3<T> & a, const glm::tvec3<T> & b) {
         return {
             (a.x % b.x + b.x) % b.x,
             (a.y % b.y + b.y) % b.y,
             (a.z % b.z + b.z) % b.z
+        };
+    }
+
+    template <typename T>
+    constexpr glm::tvec3<T> floor_mod_unsigned(const glm::tvec3<T> & a, const glm::tvec3<T> & b) {
+        return {
+            a.x % b.x,
+            a.y % b.y,
+            a.z % b.z
         };
     }
 
@@ -152,6 +170,11 @@ namespace Math {
     template <typename T>
     constexpr T position_to_index(const glm::tvec3<T> & pos, const glm::tvec3<T> & dim) {
         return to_index(floor_mod(pos, dim), dim);
+    }
+
+    template <typename T>
+    constexpr T position_to_index_unsigned(const glm::tvec3<T> & pos, const glm::tvec3<T> & dim) {
+        return to_index(floor_mod_unsigned(pos, dim), dim);
     }
 
     template <typename T>

@@ -1,6 +1,7 @@
 * region defragmentation
 * loading from network
 * cool world generator
+* use the VoxelServer (and improve it) for chunk loading
 * make cmake more portable
 * deferred shading and post processing
 * textures
