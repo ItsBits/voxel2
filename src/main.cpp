@@ -20,6 +20,7 @@
 #include "Print.hpp"
 #include "Ray.hpp"
 #include "LineCube.hpp"
+#include "Texture.hpp"
 
 int main() {
     std::unique_ptr<VoxelContainer> vc = std::make_unique<VoxelContainer>();
@@ -65,8 +66,11 @@ int main() {
         }
     };
 
+    Texture texture;
+
     GLint offset_uniform = glGetUniformLocation(scene_shader.id(), "offset");
     GLint VP_uniform = glGetUniformLocation(scene_shader.id(), "VP_matrix");
+    GLint texture_uniform = glGetUniformLocation(scene_shader.id(), "texture");
 
     auto last_loop = std::chrono::high_resolution_clock::now();
     while (!window.exitRequested()) {
@@ -112,6 +116,9 @@ int main() {
         camera.update(player.getPosition(), player.getYaw(), player.getPitch());
         scene_shader.use();
         glUniformMatrix4fv(VP_uniform, 1, GL_FALSE, glm::value_ptr(VP_matrix));
+        glUniform1i(texture_uniform, 0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture.id());
         scene.draw(offset_uniform, frustum_planes, -camera_offset);
 
         static constexpr glm::vec3 CENTER_MARKER_SIZE{ 0.02f, 0.02f, 0.02f };

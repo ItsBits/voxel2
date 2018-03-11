@@ -6,6 +6,8 @@ in vec2 texture_coord;
 in float color;
 flat in vec4 ao_colors;
 
+uniform sampler2D inTexture;
+
 float sinScaled(float x) {
     x = sin(3.1416 * (x - 0.5));
     return (x + 1.0) / 2.0;
@@ -36,5 +38,5 @@ void main()
         texture_coord.s, texture_coord.t
     );
 
-    outColor = vec4(vec3(color * interpolated_shade), 1.0f);
+    outColor = vec4(vec3(color * interpolated_shade), 1.0f) * texture(inTexture, texture_coord);
 }

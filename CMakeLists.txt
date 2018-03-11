@@ -39,6 +39,10 @@ set(SOURCE_FILES
     src/LineCube.hpp
     src/RegionContainer.hpp
     src/RegionContainer.cpp
+    stb/stb_image.h
+    stb/stb_image.cpp
+    src/Texture.hpp
+    src/Texture.cpp
 )
 
 add_executable(voxel ${SOURCE_FILES})
